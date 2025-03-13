@@ -60,28 +60,7 @@ public class OnvifCameraConfig extends SensorConfig {
         public String onvifPath = "/onvif/device_service";
     }
 
-    /*
-	@Required
-    @DisplayInfo(label="Host IP Address", desc="IP Address of the camera")
-    public String hostIp = "";
 
-    @DisplayInfo(label="Host Port", desc="ONVIF port on the camera")
-    public Integer hostPort = 80;
-
-	@DisplayInfo(label="Local UDP Streaming Port", desc="Local port for incoming camera video stream")
-	public Integer localUdpPort = 56000;
-	
-    @DisplayInfo(label="User Login", desc="User that will be logged into for issuing PTZ commands")
-    public String user = "";
-
-    @DisplayInfo(label="Password", desc="Password used to login to user")
-    public String password = "";
-	
-	@DisplayInfo(label="Path", desc="ONVIF route of the camera")
-	public String deviceService = "/onvif/device_service";
-	
-	@DisplayInfo(label="Timeout(ms)", desc="Timeout of connection to the camera")
-	public Integer timeout = 31000;*/
 
 
 
