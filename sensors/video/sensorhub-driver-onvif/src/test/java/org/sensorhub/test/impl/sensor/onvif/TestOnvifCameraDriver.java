@@ -15,48 +15,27 @@ Developer are Copyright (C) 2014 the Initial Developer. All Rights Reserved.
 
 package org.sensorhub.test.impl.sensor.onvif;
 
-import java.net.ConnectException;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-
-import javax.xml.namespace.QName;
-import javax.xml.soap.SOAPException;
-import javax.xml.ws.EndpointReference;
 
 import net.opengis.sensorml.v20.AbstractProcess;
 import net.opengis.swe.v20.DataBlock;
 import net.opengis.swe.v20.DataComponent;
 
-import org.apache.cxf.ws.discovery.WSDiscoveryClient;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
-import org.onvif.ver10.schema.FloatRange;
-import org.onvif.ver10.schema.PTZConfiguration;
-import org.onvif.ver10.schema.PTZVector;
-import org.onvif.ver10.schema.Profile;
-import org.onvif.ver10.schema.VideoSource;
-import org.sensorhub.api.common.CommandStatus;
-import org.sensorhub.api.common.Event;
-import org.sensorhub.api.common.IEventListener;
-import org.sensorhub.api.sensor.ISensorControlInterface;
-import org.sensorhub.api.sensor.ISensorDataInterface;
-import org.sensorhub.api.sensor.SensorDataEvent;
-import org.sensorhub.impl.security.ClientAuth;
+import org.sensorhub.api.event.Event;
+import org.sensorhub.api.event.IEventListener;
+import org.sensorhub.api.data.IStreamingDataInterface;
+import org.sensorhub.api.command.CommandData;
+import org.sensorhub.api.command.IStreamingControlInterface;
+import org.sensorhub.api.data.DataEvent;
 import org.sensorhub.impl.sensor.onvif.OnvifCameraConfig;
 import org.sensorhub.impl.sensor.onvif.OnvifCameraDriver;
-import org.sensorhub.test.sensor.videocam.VideoTestHelper;
 import org.vast.data.DataChoiceImpl;
 import org.vast.sensorML.SMLUtils;
 import org.vast.swe.SWEUtils;
-
-import de.onvif.discovery.OnvifDiscovery;
-import de.onvif.discovery.OnvifPointer;
-import de.onvif.soap.OnvifDevice;
-import de.onvif.soap.SOAP;
-import de.onvif.soap.devices.PtzDevices;
 
 import static org.junit.Assert.*;
 
@@ -94,7 +73,7 @@ public class TestOnvifCameraDriver implements IEventListener
     @Test
     public void testGetOutputDesc() throws Exception
     {
-        for (ISensorDataInterface di: driver.getObservationOutputs().values())
+        for (IStreamingDataInterface di: driver.getObservationOutputs().values())
         {
             DataComponent dataMsg = di.getRecordDescription();
             new SWEUtils(SWEUtils.V2_0).writeComponent(System.out, dataMsg, false, true);
@@ -104,7 +83,7 @@ public class TestOnvifCameraDriver implements IEventListener
     @Test
     public void testGetCommandDesc() throws Exception
     {
-        for (ISensorControlInterface ci: driver.getCommandInputs().values())
+        for (IStreamingControlInterface ci: driver.getCommandInputs().values())
         {
             DataComponent commandMsg = ci.getCommandDescription();
             new SWEUtils(SWEUtils.V2_0).writeComponent(System.out, commandMsg, false, true);
@@ -121,44 +100,40 @@ public class TestOnvifCameraDriver implements IEventListener
     @Test
     public void testSendPTZCommand() throws Exception
     {
-    	Map<String, ISensorControlInterface> cmdInputs = driver.getCommandInputs();
+    	Map<String, IStreamingControlInterface> cmdInputs = driver.getCommandInputs();
     	assertTrue(cmdInputs.containsKey("ptzControl"));
     	
-    	Map<String, ISensorDataInterface> outputs = driver.getAllOutputs();
+    	Map<String, ? extends IStreamingDataInterface> outputs = driver.getOutputs();
     	assertTrue(outputs.containsKey("ptzOutput"));
     	
         // register listeners
-    	ISensorDataInterface di = driver.getObservationOutputs().get("ptzOutput");
+    	IStreamingDataInterface di = driver.getObservationOutputs().get("ptzOutput");
         di.registerListener(this);
         
         // get ptz control interface
-        ISensorControlInterface ci = driver.getCommandInputs().get("ptzControl");
+        IStreamingControlInterface ci = driver.getCommandInputs().get("ptzControl");
         DataComponent commandDesc = ci.getCommandDescription().copy();
 
         // instantiate command data block and status
         DataBlock commandData;
-        CommandStatus cs;
-
+        
         // Absolute Pan
         ((DataChoiceImpl) commandDesc).setSelectedItem("pan");
         commandData = commandDesc.createDataBlock();
         commandData.setFloatValue(1, 0.0f);
-        cs = ci.execCommand(commandData);
-        assertEquals(CommandStatus.StatusCode.COMPLETED, cs.status);
+        ci.submitCommand(new CommandData(1, commandData));
 
         // Absolute Tilt
         ((DataChoiceImpl) commandDesc).setSelectedItem("tilt");
         commandData = commandDesc.createDataBlock();
         commandData.setFloatValue(1, 0.0f);
-        cs = ci.execCommand(commandData);
-        assertEquals(CommandStatus.StatusCode.COMPLETED, cs.status);
+        ci.submitCommand(new CommandData(1, commandData));
 
         // Absolute Zoom
         ((DataChoiceImpl) commandDesc).setSelectedItem("zoom");
         commandData = commandDesc.createDataBlock();
         commandData.setFloatValue(1, 0.0f);
-        cs = ci.execCommand(commandData);
-        assertEquals(CommandStatus.StatusCode.COMPLETED, cs.status);
+        ci.submitCommand(new CommandData(1, commandData));
 
         // Absolute PTZ
         ((DataChoiceImpl) commandDesc).setSelectedItem("ptzPos");
@@ -166,43 +141,38 @@ public class TestOnvifCameraDriver implements IEventListener
         commandData.setFloatValue(1, 0.25f);
         commandData.setFloatValue(2, -0.25f);
         commandData.setFloatValue(3, 0.50f);
-        cs = ci.execCommand(commandData);
-        assertEquals(CommandStatus.StatusCode.COMPLETED, cs.status);
+        ci.submitCommand(new CommandData(1, commandData));
         
         // Relative Pan
         ((DataChoiceImpl) commandDesc).setSelectedItem("rpan");
         commandData = commandDesc.createDataBlock();
         commandData.setFloatValue(1, -0.25f);
-        cs = ci.execCommand(commandData);
-        assertEquals(CommandStatus.StatusCode.COMPLETED, cs.status);
+        ci.submitCommand(new CommandData(1, commandData));
 
         // Relative Tilt
         ((DataChoiceImpl) commandDesc).setSelectedItem("rtilt");
         commandData = commandDesc.createDataBlock();
         commandData.setFloatValue(1, -0.25f);
-        cs = ci.execCommand(commandData);
-        assertEquals(CommandStatus.StatusCode.COMPLETED, cs.status);
+        ci.submitCommand(new CommandData(1, commandData));
 
         // Relative Zoom
         ((DataChoiceImpl) commandDesc).setSelectedItem("rzoom");
         commandData = commandDesc.createDataBlock();
         commandData.setFloatValue(1, 0.50f);
-        cs = ci.execCommand(commandData);
-        assertEquals(CommandStatus.StatusCode.COMPLETED, cs.status);
+        ci.submitCommand(new CommandData(1, commandData));
     }
 
     @Override
-    public void handleEvent(Event<?> e)
+    public void handleEvent(Event e)
     {
-        assertTrue(e instanceof SensorDataEvent);
+        assertTrue(e instanceof DataEvent);
         
         synchronized (this) { this.notify(); }
     }
     
     @After
-    public void cleanup()
+    public void cleanup() throws Exception
     {
-        if (driver != null)
-            driver.stop();
+        driver.stop();
     }
 }
