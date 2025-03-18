@@ -15,13 +15,10 @@ Developer are Copyright (C) 2014 the Initial Developer. All Rights Reserved.
 
 package org.sensorhub.impl.sensor.onvif;
 
-import java.net.URL;
-import java.util.*;
-
+import de.onvif.soap.OnvifDevice;
 import net.opengis.swe.v20.DataBlock;
 import net.opengis.swe.v20.DataChoice;
 import net.opengis.swe.v20.DataComponent;
-
 import net.opengis.swe.v20.Vector;
 import org.onvif.ver10.schema.*;
 import org.onvif.ver20.ptz.wsdl.PTZ;
@@ -34,13 +31,14 @@ import org.sensorhub.impl.sensor.videocam.ptz.PtzPreset;
 import org.sensorhub.impl.sensor.videocam.ptz.PtzPresetsHandler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.vast.data.DataBlockString;
 import org.vast.data.DataChoiceImpl;
 
-import de.onvif.soap.OnvifDevice;
-import org.vast.data.SWEFactory;
-
 import javax.xml.datatype.DatatypeFactory;
+import java.net.URL;
+import java.util.Collection;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 
 /**
  * <p>
@@ -53,10 +51,10 @@ import javax.xml.datatype.DatatypeFactory;
  * @since June 13, 2017
  */
 
-public class OnvifPtzControl extends AbstractSensorControl<OnvifCameraDriver>
+public class OnvifPresetsControl extends AbstractSensorControl<OnvifCameraDriver>
 {
 	private static int controlCount = 0;
-	private static final Logger log = LoggerFactory.getLogger(OnvifPtzControl.class);
+	private static final Logger log = LoggerFactory.getLogger(OnvifPresetsControl.class);
     // define and set default values
     double minPan = -180.0;
     double maxPan = 180.0;
@@ -71,10 +69,10 @@ public class OnvifPtzControl extends AbstractSensorControl<OnvifCameraDriver>
     Map<PtzPreset, String> presetsMap;
     URL optionsURL = null;
 	PTZConfiguration devicePtzConfig = null;
-    
+
 	DataChoice commandData = null;
 
-    protected OnvifPtzControl(OnvifCameraDriver driver)
+    protected OnvifPresetsControl(OnvifCameraDriver driver)
     {
         //super("ptzControl" + ++controlCount, driver);
 		super("ptzControl", driver);
@@ -83,8 +81,8 @@ public class OnvifPtzControl extends AbstractSensorControl<OnvifCameraDriver>
 
     protected void init()
     {
-		PTZConfiguration devicePtzConfig = parentSensor.ptzProfile.getPTZConfiguration();
 		if (parentSensor.ptzProfile != null) {
+			PTZConfiguration devicePtzConfig = parentSensor.ptzProfile.getPTZConfiguration();
 			if (devicePtzConfig != null) {
 				PanTiltLimits panTiltLimits = devicePtzConfig.getPanTiltLimits();
 				if (panTiltLimits != null) {
@@ -148,42 +146,15 @@ public class OnvifPtzControl extends AbstractSensorControl<OnvifCameraDriver>
 		if (presetList.isEmpty()) {
 			presetList.add("default");
 		}
-
+		// TODO Configure commandData to only include commands supported by the camera's ptz config
+		// TODO Video helper ptz preset causes error
 		commandData = videoHelper.getPtzTaskParameters(getName(), minPan, maxPan, minTilt, maxTilt, minZoom, maxZoom, presetList);
-
-		// Remove components for commands that are not supported
-		if (devicePtzConfig.getDefaultAbsolutePantTiltPositionSpace() == null) {
-			// Remove absolute PTZ
-			commandData.removeComponent(VideoCamHelper.TASKING_PAN);
-			commandData.removeComponent(VideoCamHelper.TASKING_TILT);
-			commandData.removeComponent(VideoCamHelper.TASKING_PTZ_POS);
-			log.debug("Removed absolute pt");
-		}
-		if (devicePtzConfig.getDefaultAbsoluteZoomPositionSpace() == null) {
-			commandData.removeComponent(VideoCamHelper.TASKING_ZOOM);
-			// Zoom is nested in the ptz pos item
-			commandData.getItem(VideoCamHelper.TASKING_PTZ_POS).removeComponent(VideoCamHelper.TASKING_ZOOM);
-			log.debug("Removed absolute z");
-		}
-		if (devicePtzConfig.getDefaultRelativePanTiltTranslationSpace() == null) {
-			// Remove relative PT
-			commandData.removeComponent(VideoCamHelper.TASKING_RPAN);
-			commandData.removeComponent(VideoCamHelper.TASKING_RTILT);
-			log.debug("Removed relative pt");
-		}
-		if (devicePtzConfig.getDefaultRelativeZoomTranslationSpace() == null) {
-			// Remove relative zoom
-			commandData.removeComponent(VideoCamHelper.TASKING_RZOOM);
-			log.debug("Removed relative z");
-		}
-
 		// Added support for continuous move
-		if (devicePtzConfig.getDefaultContinuousPanTiltVelocitySpace() != null) {
-			Vector speedComponent = videoHelper.createVelocityVector(null).build();
-			commandData.addItem("continuous", speedComponent);
-		}
-	}
+		Vector speedComponent = videoHelper.createVelocityVector(null).build();
+		commandData.addItem("continuous", speedComponent);
 
+	}
+    
     @Override
     protected boolean execCommand(DataBlock command) throws CommandException
     {

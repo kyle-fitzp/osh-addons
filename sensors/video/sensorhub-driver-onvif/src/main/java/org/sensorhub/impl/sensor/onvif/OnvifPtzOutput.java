@@ -73,7 +73,7 @@ public class OnvifPtzOutput extends AbstractSensorOutput<OnvifCameraDriver>
         double maxTilt = 0.0;
         double minZoom = 1.0;
         double maxZoom = 9999;
-        log.debug("Output 76");
+
         if (driver.ptzProfile != null) {
             PTZConfiguration devicePtzConfig = driver.ptzProfile.getPTZConfiguration();
             if (devicePtzConfig != null) {
@@ -97,7 +97,7 @@ public class OnvifPtzOutput extends AbstractSensorOutput<OnvifCameraDriver>
 
     protected void init()
     {
-        log.debug("Output 100");
+
     	
     	SWEFactory fac = new SWEFactory();
         textEncoding =  fac.newTextEncoding();
@@ -107,7 +107,7 @@ public class OnvifPtzOutput extends AbstractSensorOutput<OnvifCameraDriver>
 
     protected void start()
     {
-        log.debug("STARTING OUTPUT");
+
         if (timer != null)
             return;
         timer = new Timer();
@@ -144,7 +144,7 @@ public class OnvifPtzOutput extends AbstractSensorOutput<OnvifCameraDriver>
 
                         if (ptzStatus != null) {
                             PTZVector ptzVec = ptzStatus.getPosition();
-                            log.debug(ptzVec.toString());
+
                             if (ptzVec != null) {
                                 dataStruct.getComponent("pan").getData().setDoubleValue(ptzVec.getPanTilt().getX());
                                 dataStruct.getComponent("tilt").getData().setDoubleValue(ptzVec.getPanTilt().getY());
