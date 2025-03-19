@@ -24,8 +24,7 @@ import org.sensorhub.impl.comm.TCPConfig;
 import org.sensorhub.impl.sensor.rtpcam.RTPCameraConfig;
 
 import java.net.URL;
-import java.util.Collection;
-import java.util.List;
+import java.util.*;
 
 import org.sensorhub.impl.sensor.ffmpeg.config.*;
 
@@ -46,18 +45,37 @@ public class OnvifCameraConfig extends SensorConfig {
     public OnvifConfig networkConfig = new OnvifConfig();
 
     @Required
-    @DisplayInfo(label="Prefer MJPEG", desc="Choose MJPEG when available")
-    public boolean preferMjpeg = false;
+    @DisplayInfo(label="ONVIF AV Streaming Options", desc="Configure video/audio streaming")
+    public StreamingOptions streamingConfig = new StreamingOptions();
+
 
     public class OnvifConfig extends TCPConfig implements ICommConfig{
+
         public OnvifConfig() {
             this.remotePort = 80;
             this.user = "";
             this.password = "";
         }
 
+        @DisplayInfo(label= "Discovered WS ONVIF Device Endpoints")
+        public TreeSet<String> autoRemoteHost = new TreeSet<>();
+
         @DisplayInfo(label = "ONVIF Path", desc="Path for ONVIF device services.")
         public String onvifPath = "/onvif/device_service";
+
+
+    }
+
+    public class StreamingOptions {
+        @DisplayInfo(label = "Manual Stream Endpoint", desc="Endpoint for AV streaming. Leave empty to automatically detect via ONVIF.")
+        public String streamEndpoint = null;
+
+        @DisplayInfo(label = "Discovered Stream Endpoints")
+        public TreeSet<String> autoStreamEndpoint = new TreeSet<>();
+
+        @Required
+        @DisplayInfo(label="Prefer MJPEG", desc="Choose MJPEG when available")
+        public boolean preferMjpeg = false;
     }
 
 

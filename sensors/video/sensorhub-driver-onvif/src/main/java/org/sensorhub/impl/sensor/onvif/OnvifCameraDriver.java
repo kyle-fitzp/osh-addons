@@ -18,11 +18,14 @@ package org.sensorhub.impl.sensor.onvif;
 
 import java.net.*;
 import java.util.List;
+import java.util.TreeSet;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 
 //import javax.xml.soap.SOAPException;
+import de.onvif.discovery.OnvifDiscovery;
 import jakarta.xml.ws.http.HTTPException;
+import net.opengis.swe.v20.Text;
 import org.sensorhub.api.sensor.SensorException;
 import org.sensorhub.impl.sensor.AbstractSensorModule;
 import org.onvif.ver10.schema.*;
@@ -54,7 +57,7 @@ public class OnvifCameraDriver extends AbstractSensorModule<OnvifCameraConfig>
     protected ScheduledExecutorService executor;
     OnvifPtzOutput ptzPosOutput;
     OnvifPtzControl ptzControlInterface;
-    OnvifDiscoveryControl discoveryControl;
+    //OnvifDiscoveryControl discoveryControl;
 
     String hostIp;
     Integer hostPort;
@@ -80,6 +83,7 @@ public class OnvifCameraDriver extends AbstractSensorModule<OnvifCameraConfig>
 
     public OnvifCameraDriver() throws SensorHubException {
         super();
+
     }
 
 
@@ -92,7 +96,12 @@ public class OnvifCameraDriver extends AbstractSensorModule<OnvifCameraConfig>
         user = (config.networkConfig.user == null) ? "" : config.networkConfig.user;
         password = (config.networkConfig.password == null) ? "" : config.networkConfig.password;
         onvifPath = (config.networkConfig.onvifPath == null) ? "" : config.networkConfig.onvifPath;
-        preferMjpeg = config.preferMjpeg;
+        preferMjpeg = config.streamingConfig.preferMjpeg;
+
+        TreeSet<URL> temp = (TreeSet<URL>) OnvifDiscovery.discoverOnvifURLs();
+        config.networkConfig.autoRemoteHost.clear();
+        for (URL url : temp)
+            config.networkConfig.autoRemoteHost.add(url.toString());
     };
 
     @Override
@@ -108,15 +117,11 @@ public class OnvifCameraDriver extends AbstractSensorModule<OnvifCameraConfig>
         ptzProfile = null;
         ptzControlInterface = null;
         ptzPosOutput = null;
-        discoveryControl = null;
+        //discoveryControl = null;
 
-        if (hostIp == null) {
-            generateUniqueID("urn:onvif:cam:", "temp");
-            generateXmlID("ONVIF_CAM_", "temp");
-            discoveryControl = new OnvifDiscoveryControl(this);
-            discoveryControl.init();
+        if (hostIp == null || hostIp.isBlank()) {
+
             return;
-            //throw new SensorHubException("No host IP address provided in config");
         }
 
         // Attempt camera connection
@@ -151,6 +156,7 @@ public class OnvifCameraDriver extends AbstractSensorModule<OnvifCameraConfig>
         }
 
         // Iterate through profiles, select those with ptz or streaming
+        config.streamingConfig.autoStreamEndpoint.clear();
         Profile tempMedia = null;
         for (Profile p: profiles) {
             // Select a profile that supports ptz
@@ -160,15 +166,14 @@ public class OnvifCameraDriver extends AbstractSensorModule<OnvifCameraConfig>
             // Select a profile that supports video
             if (streamingProfile == null && p.getVideoEncoderConfiguration() != null) {
                 tempMedia = p;
+                config.streamingConfig.autoStreamEndpoint.add(camera.getStreamUri(p.getToken()));
                 // If MJPEG is preferred and supported, select it
                 if (preferMjpeg && p.getVideoEncoderConfiguration().getEncoding() != null && camera.getMedia().getVideoEncoderConfigurationOptions(null, p.getToken()).getJPEG() != null) {
                     streamingProfile = p;
                     streamingProfile.getVideoEncoderConfiguration().setEncoding(VideoEncoding.JPEG);
-                    log.trace("Successfully switched to JPEG: {}", streamingProfile.getVideoEncoderConfiguration().getEncoding().toString());
+                    log.debug("Successfully switched to JPEG: {}", streamingProfile.getVideoEncoderConfiguration().getEncoding().toString());
                 }
             }
-            if (ptzProfile != null && streamingProfile != null)
-                break;
         }
 
         // If MJPEG is preferred but not found, fall back to other discovered video profile
@@ -222,28 +227,35 @@ public class OnvifCameraDriver extends AbstractSensorModule<OnvifCameraConfig>
 
             streamURI = URI.create(camera.getStreamUri(streamingProfile.getToken()));
             // Add credentials if provided
-            if (user != null && password != null && (!user.isBlank() || !password.isBlank()))
+            if (config.streamingConfig.streamEndpoint != null && !config.streamingConfig.streamEndpoint.isBlank()) {
+                visualConnectionString = config.streamingConfig.streamEndpoint;
+            } else if (user != null && password != null && (!user.isBlank() || !password.isBlank())) {
                 visualConnectionString = "rtsp://" + user + ":" + password + "@" + streamURI.getHost() + ":" + streamURI.getPort() + streamURI.getPath();
-            else
+                config.streamingConfig.streamEndpoint = visualConnectionString;
+            } else {
                 visualConnectionString = streamURI.toString();
-
+                config.streamingConfig.streamEndpoint = visualConnectionString;
+            }
+            log.debug(visualConnectionString);
             setupStream();
         }
     }
 
     @Override
     public void doStart() throws SensorHubException {
-        if (config.networkConfig.remoteHost == null || config.networkConfig.remoteHost.isBlank())
-            throw new SensorHubException("Connection not established. Connect to a camera before starting.");
-
         super.doStart();
+        // Guard condition, checks if this camera needs to fill config using discovery
+        if (config.networkConfig.remoteHost == null || config.networkConfig.remoteHost.isBlank()) {
+            throw new SensorHubException("Connection not established. Connect to a camera before starting.");
+        }
+
         if (ptzPosOutput != null)
             ptzPosOutput.start();
 
         if (ptzControlInterface != null)
             ptzControlInterface.start();
 
-        if (streamingProfile != null && mpegTsProcessor != null && videoOutput != null && audioOutput != null) {
+        if (streamingProfile != null && mpegTsProcessor != null && (videoOutput != null || audioOutput != null)) {
             setupStream();
             startStream();
         }
@@ -291,7 +303,7 @@ public class OnvifCameraDriver extends AbstractSensorModule<OnvifCameraConfig>
 
     protected void openStreamVisual() throws SensorHubException{
     if (mpegTsProcessor == null) {
-        mpegTsProcessor = new MpegTsProcessor(visualConnectionString);
+        mpegTsProcessor = new MpegTsProcessor(visualConnectionString, 30, false);
 
         // Initialize the MPEG transport stream processor from the source named in the configuration.
         if (mpegTsProcessor.openStream()) {
