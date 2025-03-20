@@ -89,6 +89,7 @@ public class OnvifCameraDriver extends AbstractSensorModule<OnvifCameraConfig>
 
     @Override
     public void setConfiguration(final OnvifCameraConfig config) {
+
         super.setConfiguration(config);
         this.config = config;
         hostIp = config.networkConfig.remoteHost;
@@ -266,16 +267,17 @@ public class OnvifCameraDriver extends AbstractSensorModule<OnvifCameraConfig>
         //super.doStop();
         if(ptzPosOutput != null) {
             ptzPosOutput.stop();
-            //ptzPosOutput = null;
+            ptzPosOutput = null;
         }
         if (ptzControlInterface != null) {
             ptzControlInterface.stop();
-            //ptzControlInterface = null;
+            ptzControlInterface = null;
         }
         if (mpegTsProcessor != null) {
             stopStream();
             shutdownExecutor();
         }
+
     }
 
     protected void setupStream() throws SensorHubException {

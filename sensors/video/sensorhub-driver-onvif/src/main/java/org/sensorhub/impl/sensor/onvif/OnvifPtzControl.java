@@ -18,9 +18,7 @@ package org.sensorhub.impl.sensor.onvif;
 import java.net.URL;
 import java.util.*;
 
-import net.opengis.swe.v20.DataBlock;
-import net.opengis.swe.v20.DataChoice;
-import net.opengis.swe.v20.DataComponent;
+import net.opengis.swe.v20.*;
 
 import net.opengis.swe.v20.Vector;
 import org.onvif.ver10.schema.*;
@@ -38,9 +36,12 @@ import org.vast.data.DataBlockString;
 import org.vast.data.DataChoiceImpl;
 
 import de.onvif.soap.OnvifDevice;
+import org.vast.data.DataRecordImpl;
 import org.vast.data.SWEFactory;
 
 import javax.xml.datatype.DatatypeFactory;
+
+import static org.vast.swe.SWEHelper.getPropertyUri;
 
 /**
  * <p>
@@ -179,8 +180,26 @@ public class OnvifPtzControl extends AbstractSensorControl<OnvifCameraDriver>
 
 		// Added support for continuous move
 		if (devicePtzConfig.getDefaultContinuousPanTiltVelocitySpace() != null) {
-			Vector speedComponent = videoHelper.createVelocityVector(null).build();
-			commandData.addItem("continuous", speedComponent);
+			//Vector speedComponent = videoHelper.createVelocityVector(null).build();
+			//speedComponent.getCoordinate("vx").;
+			DataRecord ptzPos = new DataRecordImpl(3);
+			ptzPos.setName("ptzCont");
+			//ptzPos.setDefinition(getPropertyUri("PtzPosition"));
+			ptzPos.setLabel("Continuous PTZ Movement Vector");
+			float panSpeed = (speed.getPanTilt() == null) ? 0 : speed.getPanTilt().getX();
+			float tiltSpeed = (speed.getPanTilt() == null) ? 0 : speed.getPanTilt().getY();
+			float zoomSpeed = (speed.getZoom() == null) ? 0 : speed.getZoom().getX();
+			var panComp = videoHelper.getPanComponent(-panSpeed, panSpeed);
+			panComp.setValue(0.0);
+			var tiltComp = videoHelper.getTiltComponent(-tiltSpeed, tiltSpeed);
+			tiltComp.setValue(0.0);
+			var zoomComp = videoHelper.getZoomComponent(-zoomSpeed, zoomSpeed);
+			zoomComp.setValue(0.0);
+			ptzPos.addComponent("cpan", panComp);
+			ptzPos.addComponent("ctilt", tiltComp);
+			ptzPos.addComponent("czoom", zoomComp);
+			ptzPos.setUpdatable(true);
+			commandData.addItem(ptzPos.getName(), ptzPos);
 		}
 	}
 
@@ -314,7 +333,7 @@ public class OnvifPtzControl extends AbstractSensorControl<OnvifCameraDriver>
 
         		camera.getPtz().absoluteMove(profile.getToken(), position, speed);
         	}
-			else if (itemID.equalsIgnoreCase("continuous"))
+			else if (itemID.equalsIgnoreCase("ptzCont"))
 			{
 				PTZSpeed speedVec = new PTZSpeed();
 				Vector2D panTiltSpeed = new Vector2D();
