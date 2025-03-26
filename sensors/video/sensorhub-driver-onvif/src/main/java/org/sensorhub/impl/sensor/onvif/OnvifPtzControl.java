@@ -18,26 +18,21 @@ package org.sensorhub.impl.sensor.onvif;
 import java.net.URL;
 import java.util.*;
 
+import jakarta.xml.ws.Holder;
 import net.opengis.swe.v20.*;
 
-import net.opengis.swe.v20.Vector;
 import org.onvif.ver10.schema.*;
 import org.onvif.ver20.ptz.wsdl.PTZ;
 import org.sensorhub.api.command.CommandException;
 import org.sensorhub.api.sensor.SensorException;
 import org.sensorhub.impl.sensor.AbstractSensorControl;
 import org.sensorhub.impl.sensor.videocam.VideoCamHelper;
-import org.sensorhub.impl.sensor.videocam.ptz.PtzConfig;
-import org.sensorhub.impl.sensor.videocam.ptz.PtzPreset;
-import org.sensorhub.impl.sensor.videocam.ptz.PtzPresetsHandler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.vast.data.DataBlockString;
-import org.vast.data.DataChoiceImpl;
+import org.vast.data.*;
 
 import de.onvif.soap.OnvifDevice;
-import org.vast.data.DataRecordImpl;
-import org.vast.data.SWEFactory;
+import org.vast.swe.SWEHelper;
 
 import javax.xml.datatype.DatatypeFactory;
 
@@ -66,12 +61,19 @@ public class OnvifPtzControl extends AbstractSensorControl<OnvifCameraDriver>
     double minZoom = 1.0;
     double maxZoom = 9999;
 	PTZSpeed speed = new PTZSpeed();
-
-    PtzPresetsHandler presetsHandler;
+	SWEHelper helper = new SWEHelper();
+    //PtzPresetsHandler presetsHandler;
 	PTZ ptz = null;
-    Map<PtzPreset, String> presetsMap;
+	Profile ptzProfile;
+	PTZConfiguration devicePtzConfig;
+	OnvifDevice camera;
+
+	// Stores presets as TOKEN, NAME pairs
+    Map<String, String> presetsMap;
+
     URL optionsURL = null;
-	PTZConfiguration devicePtzConfig = null;
+	//PTZConfiguration devicePtzConfig = null;
+	//PtzConfig ptzConfig = new PtzConfig();
     
 	DataChoice commandData = null;
 
@@ -81,10 +83,94 @@ public class OnvifPtzControl extends AbstractSensorControl<OnvifCameraDriver>
 		super("ptzControl", driver);
     }
 
+	/**
+	 * Inverts preset mappings and returns as a list of Strings.
+	 * @return
+	 */
+	protected List<String> mapToAllowedValues() {
+		ArrayList<String> nameValues = new ArrayList<String>();
+		// Create a list of presets in the form "value: key" (name: token)
+		// Inverts mappings, returns as list of Strings
+		for (String key: presetsMap.keySet()) {
+			nameValues.add("Name: " + presetsMap.get(key) + ", Token: " + key);
+		}
+		return nameValues;
+	}
+
+	/**
+	 * Initializes the ptz presets. Adds the presets to the presetMap. The presetMap is later used to set the
+	 * allowed values constraint for the preset command. This should be called before using the VideoHelper to set the
+	 * ptz commands. This method does not modify the command structure or constraints.
+	 */
+	protected void initPresetsMap() {
+		// Contains token, name pairs for presets.
+		// Camera itself stores position info.
+		presetsMap = new LinkedHashMap<String, String>();
+		List<PTZPreset> presets = parentSensor.camera.getPtz().getPresets(parentSensor.ptzProfile.getToken());
+		// Iterate through the list of presets, adding the name
+		for (PTZPreset preset : presets) {
+			presetsMap.put(preset.getToken(), preset.getName());
+		}
+	}
+
+	/**
+	 * Adds a new ptz preset to the map and allowed values constraint.
+	 * DO NOT CALL THIS BEFORE INITIALIZING (I think)
+	 *
+	 * @param presetName Name & token of the preset to add
+	 */
+	protected void addPreset(String presetName, String presetToken) throws CommandException {
+		initPresetsMap(); // Refresh the presets map
+		// Add preset to map
+		//presetsMap.put(presetToken,presetName);
+
+		// Add preset to allowed values constraint
+		// TODO: No idea if this works. Feels like it should(?)
+
+		AllowedTokens presetNames = helper.newAllowedTokens();
+		for (String position : mapToAllowedValues())
+			presetNames.addValue(position);
+
+		var item = (CategoryImpl)this.commandData.getItem(VideoCamHelper.TASKING_PTZPRESET);
+		item.setConstraint(presetNames);
+
+		item = (CategoryImpl)this.commandData.getItem("presetRemove");
+		item.setConstraint(presetNames);
+	}
+
+	/**
+	 * Removes a preset from the map and allowed values constraint.
+	 *
+	 * @param presetToken
+	 */
+	protected void removePreset(String presetToken) throws CommandException {
+		initPresetsMap();
+		/*
+		if (!presetsMap.containsKey(presetToken)) {
+			throw new CommandException("Ptz preset token to remove is not valid.");
+		}
+		presetsMap.remove(presetToken);*/
+
+		// Update preset allowed values constraint
+		// TODO: No idea if this works. Feels like it should(?)
+		AllowedTokens presetNames = helper.newAllowedTokens();
+		for (String position : mapToAllowedValues())
+			presetNames.addValue(position);
+
+		var item = (CategoryImpl)this.commandData.getItem(VideoCamHelper.TASKING_PTZPRESET);
+		item.setConstraint(presetNames);
+
+		item = (CategoryImpl)this.commandData.getItem("presetRemove");
+		item.setConstraint(presetNames);
+	}
 
     protected void init()
     {
-		PTZConfiguration devicePtzConfig = parentSensor.ptzProfile.getPTZConfiguration();
+		camera = parentSensor.camera;
+		ptz = camera.getPtz();
+		ptzProfile = parentSensor.ptzProfile;
+		devicePtzConfig = parentSensor.ptzProfile.getPTZConfiguration();
+
 		if (parentSensor.ptzProfile != null) {
 			if (devicePtzConfig != null) {
 				PanTiltLimits panTiltLimits = devicePtzConfig.getPanTiltLimits();
@@ -104,53 +190,27 @@ public class OnvifPtzControl extends AbstractSensorControl<OnvifCameraDriver>
 			}
 		}
 
-		PtzConfig ptzConfig = new PtzConfig();
-		presetsMap = new LinkedHashMap<PtzPreset, String>();
-
-		if (parentSensor.ptzProfile != null) {
-			ptz = parentSensor.camera.getPtz();
-			List<PTZPreset> presets = parentSensor.camera.getPtz().getPresets(parentSensor.ptzProfile.getToken());
-			int counter = 0;
-			for (PTZPreset p : presets) {
-				PtzPreset preset = new PtzPreset();
-				PTZVector ptzPos = p.getPTZPosition();
-				preset.name = p.getName();
-
-				if (preset.name == null) {
-					preset.name = "Preset " + ++counter;
-				}
-
-				if (ptzPos != null && p.getToken() != null) {
-					Vector2D panTiltVec = ptzPos.getPanTilt();
-					preset.pan = panTiltVec.getX();
-					preset.tilt = panTiltVec.getY();
-					Vector1D zoomVec = ptzPos.getZoom();
-					preset.zoom = zoomVec.getX();
-
-					// Add preset to config
-					ptzConfig.presets.add(preset);
-					presetsMap.put(preset, p.getToken());
-				}
-			}
-
-
-		}
-
-		// Add a default preset to avoid having null presets
-		PtzPreset preset = new PtzPreset();
-		preset.name = "default";
-		ptzConfig.presets.add(preset);
-		presetsMap.put(preset, "def");
-		presetsHandler = new PtzPresetsHandler(ptzConfig);
+		// Update the ptz presets before finishing init,
+		// used for allowed values constraint.
+		initPresetsMap();
 
         // build SWE data structure for the tasking parameters
         VideoCamHelper videoHelper = new VideoCamHelper();
-        Collection<String> presetList = presetsHandler.getPresetNames();
-		if (presetList.isEmpty()) {
-			presetList.add("default");
-		}
 
-		commandData = videoHelper.getPtzTaskParameters(getName(), minPan, maxPan, minTilt, maxTilt, minZoom, maxZoom, presetList);
+		commandData = videoHelper.getPtzTaskParameters(getName(), minPan, maxPan, minTilt, maxTilt, minZoom, maxZoom, presetsMap.values());
+		commandData.setUpdatable(true);
+
+		// Replace presets with list instead of text entry.
+		commandData.removeComponent(VideoCamHelper.TASKING_PTZPRESET);
+		Category presetComp = helper.createCategory().addAllowedValues(mapToAllowedValues()).build();
+		commandData.addItem(VideoCamHelper.TASKING_PTZPRESET, presetComp);
+
+
+		var presetAdd = helper.createText().name("presetAdd").label("Add a Preset").dataType(DataType.UTF_STRING).build();
+		commandData.addItem(presetAdd.getName(), presetAdd);
+
+		var presetRemove = helper.createCategory().name("presetRemove").label("Remove a Preset").addAllowedValues(mapToAllowedValues()).build();
+		commandData.addItem(presetRemove.getName(), presetRemove);
 
 		// Remove components for commands that are not supported
 		if (devicePtzConfig.getDefaultAbsolutePantTiltPositionSpace() == null) {
@@ -189,11 +249,21 @@ public class OnvifPtzControl extends AbstractSensorControl<OnvifCameraDriver>
 			float panSpeed = (speed.getPanTilt() == null) ? 0 : speed.getPanTilt().getX();
 			float tiltSpeed = (speed.getPanTilt() == null) ? 0 : speed.getPanTilt().getY();
 			float zoomSpeed = (speed.getZoom() == null) ? 0 : speed.getZoom().getX();
-			var panComp = videoHelper.getPanComponent(-panSpeed, panSpeed);
+
+			// Making these from scratch to avoid allowed ranges. Speed values differ significantly from camera to camera.
+			//var panComp = videoHelper.getPanComponent(-panSpeed, panSpeed);
+
+			var panComp = helper.createQuantity().name("Pan").description("Gimbal rotation (usually horizontal)")
+					.label("Pan").definition(getPropertyUri("Pan")).uom("deg").dataType(DataType.FLOAT).build();
 			panComp.setValue(0.0);
-			var tiltComp = videoHelper.getTiltComponent(-tiltSpeed, tiltSpeed);
+			//var tiltComp = videoHelper.getTiltComponent(-tiltSpeed, tiltSpeed);
+			var tiltComp = helper.createQuantity().name("Tilt").description("Gimbal rotation (usually up-down)")
+					.label("Tilt").definition(getPropertyUri("Tilt")).uom("deg").dataType(DataType.FLOAT).build();
 			tiltComp.setValue(0.0);
-			var zoomComp = videoHelper.getZoomComponent(-zoomSpeed, zoomSpeed);
+
+			//var zoomComp = videoHelper.getZoomComponent(-zoomSpeed, zoomSpeed);
+			var zoomComp = helper.createQuantity().name("ZoomFactor").description("Camera specific zoom factor")
+					.label("Tilt").definition(getPropertyUri("ZoomFactor")).uom("1").dataType(DataType.FLOAT).build();
 			zoomComp.setValue(0.0);
 			ptzPos.addComponent("cpan", panComp);
 			ptzPos.addComponent("ctilt", tiltComp);
@@ -219,10 +289,9 @@ public class OnvifPtzControl extends AbstractSensorControl<OnvifCameraDriver>
 
         try
         {
-        	OnvifDevice camera = parentSensor.camera;
-        	Profile profile = parentSensor.ptzProfile;
-			PTZConfiguration config = profile.getPTZConfiguration();
-			PTZStatus status = ptz.getStatus(profile.getToken());
+
+			PTZConfiguration config = ptzProfile.getPTZConfiguration();
+			PTZStatus status = ptz.getStatus(ptzProfile.getToken());
 			PTZVector position = status.getPosition();
 
 			// Note: Some tasking is not supported for certain cameras
@@ -236,7 +305,7 @@ public class OnvifPtzControl extends AbstractSensorControl<OnvifCameraDriver>
 				targetPanTilt.setY(position.getPanTilt().getY());
 				position.setPanTilt(targetPanTilt);
 
-				ptz.absoluteMove(profile.getToken(), position, speed);
+				ptz.absoluteMove(ptzProfile.getToken(), position, speed);
 
         	}
         	else if (itemID.equals(VideoCamHelper.TASKING_TILT))
@@ -249,7 +318,7 @@ public class OnvifPtzControl extends AbstractSensorControl<OnvifCameraDriver>
 				targetPanTilt.setY(tilt);
 				position.setPanTilt(targetPanTilt);
 
-				camera.getPtz().absoluteMove(profile.getToken(), position, speed);
+				camera.getPtz().absoluteMove(ptzProfile.getToken(), position, speed);
         	}
         	else if (itemID.equals(VideoCamHelper.TASKING_ZOOM))
         	{
@@ -260,7 +329,7 @@ public class OnvifPtzControl extends AbstractSensorControl<OnvifCameraDriver>
 				zoomVec.setX(zoom);
 				position.setZoom(zoomVec);
 
-        		camera.getPtz().absoluteMove(profile.getToken(), position, speed);
+        		camera.getPtz().absoluteMove(ptzProfile.getToken(), position, speed);
         	}
         	else if (itemID.equals(VideoCamHelper.TASKING_RPAN))
         	{
@@ -272,7 +341,7 @@ public class OnvifPtzControl extends AbstractSensorControl<OnvifCameraDriver>
 				targetPanTilt.setSpace(config.getDefaultRelativePanTiltTranslationSpace());
 				position.setPanTilt(targetPanTilt);
 
-				camera.getPtz().relativeMove(profile.getToken(), position, speed);
+				camera.getPtz().relativeMove(ptzProfile.getToken(), position, speed);
         	}
         	else if (itemID.equals(VideoCamHelper.TASKING_RTILT))
         	{
@@ -284,7 +353,7 @@ public class OnvifPtzControl extends AbstractSensorControl<OnvifCameraDriver>
 				targetPanTilt.setSpace(config.getDefaultRelativePanTiltTranslationSpace());
 				position.setPanTilt(targetPanTilt);
 
-				camera.getPtz().relativeMove(profile.getToken(), position, speed);
+				camera.getPtz().relativeMove(ptzProfile.getToken(), position, speed);
         	}
         	else if (itemID.equals(VideoCamHelper.TASKING_RZOOM))
         	{
@@ -295,25 +364,43 @@ public class OnvifPtzControl extends AbstractSensorControl<OnvifCameraDriver>
 				zoomVec.setSpace(config.getDefaultRelativeZoomTranslationSpace());
 				position.setZoom(zoomVec);
 
-        		camera.getPtz().relativeMove(profile.getToken(), position, speed);
+        		camera.getPtz().relativeMove(ptzProfile.getToken(), position, speed);
         	}
         	else if (itemID.equals(VideoCamHelper.TASKING_PTZPRESET))
         	{
-				boolean hasPreset = false;
-				String requestedPreset = data.getStringValue();
-				if (requestedPreset == null)
-					return false;
-				for (String presetName : presetsHandler.getPresetNames()) {
-					if (presetName.equals(requestedPreset)) {
-						hasPreset = true;
-						break;
-					}
-				}
-				if (hasPreset) {
-					PtzPreset preset = presetsHandler.getPreset(requestedPreset);
-					camera.getPtz().gotoPreset(profile.getToken(), presetsMap.get(preset), speed);
+				String preset = data.getStringValue(); // This is in the form "Name: {name}, Token: {token}"
+				String presetToken = preset.substring(preset.lastIndexOf("Token:") + "Token: ".length());
+				if (presetsMap.containsKey(presetToken)) {
+					ptz.gotoPreset(ptzProfile.getToken(), presetToken, speed);
+				} else {// This should never happen. May indicate issue when parsing selected string.
+					throw new CommandException("Could not find this preset to execute.");
 				}
         	}
+			else if (itemID.equalsIgnoreCase("presetAdd")) {
+				String presetName = data.getStringValue();
+				//var ptzStatus = camera.getPtz().getStatus(profile.getToken());
+
+				if (presetName == null || presetName.contains("Token: ") || presetsMap.containsValue(presetName))
+					return false;
+
+				// Update preset
+				Holder<String> tokenHolder = new Holder<>(presetName);
+				ptz.setPreset(ptzProfile.getToken(), presetName, tokenHolder);
+				addPreset(presetName, tokenHolder.value);
+
+			}
+			else if (itemID.equalsIgnoreCase("presetRemove")) {
+				// TODO: This code appears a couple times, should probably create a function.
+				String preset = data.getStringValue(); // This is in the form "Name: {name}, Token: {token}"
+				String presetToken = preset.substring(preset.lastIndexOf("Token:") + "Token: ".length());
+
+				if (presetsMap.containsKey(presetToken)) {
+					removePreset(presetToken);
+					ptz.removePreset(ptzProfile.getToken(), presetToken);
+				}
+				//for ()
+
+			}
         	else if (itemID.equalsIgnoreCase(VideoCamHelper.TASKING_PTZ_POS))
         	{
 				float pan = component.getComponent("pan").getData().getFloatValue();
@@ -331,7 +418,7 @@ public class OnvifPtzControl extends AbstractSensorControl<OnvifCameraDriver>
 				zoomVec.setSpace(config.getDefaultAbsoluteZoomPositionSpace());
 				position.setZoom(zoomVec);
 
-        		camera.getPtz().absoluteMove(profile.getToken(), position, speed);
+        		camera.getPtz().absoluteMove(ptzProfile.getToken(), position, speed);
         	}
 			else if (itemID.equalsIgnoreCase("ptzCont"))
 			{
@@ -350,7 +437,7 @@ public class OnvifPtzControl extends AbstractSensorControl<OnvifCameraDriver>
 				zoomSpeed.setSpace(config.getDefaultContinuousZoomVelocitySpace());
 				speedVec.setZoom(zoomSpeed);
 				// Note: Duration does not seem to work (at least on camera used for testing).
-				camera.getPtz().continuousMove(profile.getToken(), speedVec, DatatypeFactory.newInstance().newDuration(500));
+				camera.getPtz().continuousMove(ptzProfile.getToken(), speedVec, DatatypeFactory.newInstance().newDuration(500));
 			}
 	    }
 	    catch (Exception e)
@@ -375,9 +462,9 @@ public class OnvifPtzControl extends AbstractSensorControl<OnvifCameraDriver>
 		log.debug("---------SENSOR STARTING---------");
 		DataBlock initCmd;
 		commandData.setSelectedItem(6);
-		initCmd = commandData.createDataBlock();
-		commandData.setData(initCmd);
-
+		//initCmd = commandData.createDataBlock();
+		//commandData.setData(initCmd);
+/*
 		try
 		{
 			execCommand(initCmd);
@@ -385,7 +472,7 @@ public class OnvifPtzControl extends AbstractSensorControl<OnvifCameraDriver>
 		catch (CommandException e)
 		{
 			throw new SensorException("Init command failed", e);
-		}
+		}*/
     }
 
 	public void stop()

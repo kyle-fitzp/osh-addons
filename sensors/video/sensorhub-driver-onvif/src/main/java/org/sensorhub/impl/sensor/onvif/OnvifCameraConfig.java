@@ -15,6 +15,7 @@ Developer are Copyright (C) 2014 the Initial Developer. All Rights Reserved.
 
 package org.sensorhub.impl.sensor.onvif;
 
+import org.onvif.ver10.schema.VideoEncoding;
 import org.sensorhub.api.comm.ICommConfig;
 import org.sensorhub.api.config.DisplayInfo;
 import org.sensorhub.api.config.DisplayInfo.Required;
@@ -67,6 +68,7 @@ public class OnvifCameraConfig extends SensorConfig {
     }
 
     public class StreamingOptions {
+
         @DisplayInfo(label = "Manual Stream Endpoint", desc="Endpoint for AV streaming. Leave empty to automatically detect via ONVIF.")
         public String streamEndpoint = null;
 
@@ -74,12 +76,7 @@ public class OnvifCameraConfig extends SensorConfig {
         public TreeSet<String> autoStreamEndpoint = new TreeSet<>();
 
         @Required
-        @DisplayInfo(label="Prefer MJPEG", desc="Choose MJPEG when available")
-        public boolean preferMjpeg = false;
+        @DisplayInfo(label="Preferred Codec", desc="Select video codec for streaming.")
+        public VideoEncoding codec = VideoEncoding.JPEG;
     }
-
-
-
-
-
 }
