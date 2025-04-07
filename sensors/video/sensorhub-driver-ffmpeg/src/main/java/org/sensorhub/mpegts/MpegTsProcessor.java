@@ -118,6 +118,11 @@ public class MpegTsProcessor extends Thread {
     volatile boolean loop;
 
     /**
+     * Desired transport protocol. udp or tcp (or empty/null for default behavior).
+     */
+    private String transport;
+
+    /**
      * Executor to restart the stream in case of failure.
      */
     protected ScheduledExecutorService restartExecutor;
@@ -127,8 +132,17 @@ public class MpegTsProcessor extends Thread {
      *
      * @param source A string representation of the file or url to use as the source of the transport stream to demux.
      */
+    public MpegTsProcessor(String source, String transport) {
+        this(source, 0, false, transport);
+    }
+
+    /**
+     * Constructor
+     *
+     * @param source A string representation of the file or url to use as the source of the transport stream to demux.
+     */
     public MpegTsProcessor(String source) {
-        this(source, 0, false);
+        this(source, 0, false, null);
     }
 
     /**
@@ -139,11 +153,24 @@ public class MpegTsProcessor extends Thread {
      * @param loop   If true, play the video file continuously in a loop.
      */
     public MpegTsProcessor(String source, int fps, boolean loop) {
+        this(source, fps, loop, null);
+    }
+
+    /**
+     * Constructor with more options when playing back from a file.
+     *
+     * @param source A string representation of the file or url to use as the source of the transport stream to demux.
+     * @param fps    The desired playback FPS (use 0 for decoding the TS file as fast as possible).
+     * @param loop   If true, play the video file continuously in a loop.
+     * @param transport Desired transport protocol. udp or tcp (or empty/null for default behavior)
+     */
+    public MpegTsProcessor(String source, int fps, boolean loop, String transport) {
         super(WORKER_THREAD_NAME);
 
         this.streamSource = source;
         this.fps = fps;
         this.loop = loop;
+        this.transport = transport;
     }
 
     /**
@@ -163,6 +190,10 @@ public class MpegTsProcessor extends Thread {
         // Set timeout
         var options = new AVDictionary(null);
         avutil.av_dict_set(options, "timeout", "3000000", 0);
+
+        // Set transport protocol
+        if (transport != null && (transport.equals("udp") || transport.equals("tcp")))
+            avutil.av_dict_set(options, "rtsp_transport", transport, 0);
 
         int returnCode = avformat.avformat_open_input(avFormatContext, streamSource, null, options);
         logger.debug("returnCode: {}", returnCode);
@@ -372,7 +403,6 @@ public class MpegTsProcessor extends Thread {
      */
     public void processStream() throws IllegalStateException {
         logger.debug("processStream");
-
         if (streamOpened) {
             start();
         } else {
