@@ -39,8 +39,6 @@ import org.sensorhub.impl.sensor.ffmpeg.config.*;
  * @since May 22, 2017
  */
 public class OnvifCameraConfig extends SensorConfig {
-
-
     @Required
     @DisplayInfo(label="ONVIF Connection Options", desc="Configure ONVIF remote address and port")
     public OnvifConfig networkConfig = new OnvifConfig();
@@ -49,26 +47,21 @@ public class OnvifCameraConfig extends SensorConfig {
     @DisplayInfo(label="ONVIF AV Streaming Options", desc="Configure video/audio streaming")
     public StreamingOptions streamingConfig = new StreamingOptions();
 
-
     public class OnvifConfig extends TCPConfig implements ICommConfig{
-
         public OnvifConfig() {
             this.remotePort = 80;
             this.user = "";
             this.password = "";
         }
 
-        @DisplayInfo(label= "Discovered WS ONVIF Device Endpoints")
+        @DisplayInfo(label= "Discovered ONVIF Device Endpoints")
         public TreeSet<String> autoRemoteHost = new TreeSet<>();
 
         @DisplayInfo(label = "ONVIF Path", desc="Path for ONVIF device services.")
         public String onvifPath = "/onvif/device_service";
-
-
     }
 
     public class StreamingOptions {
-
         @DisplayInfo(label = "Manual Stream Endpoint", desc="Endpoint for AV streaming. Leave empty to automatically detect via ONVIF.")
         public String streamEndpoint = null;
 

@@ -85,7 +85,7 @@ public class OnvifPtzControl extends AbstractSensorControl<OnvifCameraDriver>
 
 	/**
 	 * Inverts preset mappings and returns as a list of Strings.
-	 * @return
+Min	 * @return ArrayList of presets in the form "value: key" (name: token)
 	 */
 	protected List<String> mapToAllowedValues() {
 		ArrayList<String> nameValues = new ArrayList<String>();
@@ -205,7 +205,6 @@ public class OnvifPtzControl extends AbstractSensorControl<OnvifCameraDriver>
 		Category presetComp = helper.createCategory().addAllowedValues(mapToAllowedValues()).build();
 		commandData.addItem(VideoCamHelper.TASKING_PTZPRESET, presetComp);
 
-
 		var presetAdd = helper.createText().name("presetAdd").label("Add a Preset").dataType(DataType.UTF_STRING).build();
 		commandData.addItem(presetAdd.getName(), presetAdd);
 
@@ -253,17 +252,17 @@ public class OnvifPtzControl extends AbstractSensorControl<OnvifCameraDriver>
 			// Making these from scratch to avoid allowed ranges. Speed values differ significantly from camera to camera.
 			//var panComp = videoHelper.getPanComponent(-panSpeed, panSpeed);
 
-			var panComp = helper.createQuantity().name("Pan").description("Gimbal rotation (usually horizontal)")
-					.label("Pan").definition(getPropertyUri("Pan")).uom("deg").dataType(DataType.FLOAT).build();
+			var panComp = helper.createQuantity().name("Pan").description("Gimbal rotation speed (usually horizontal)")
+					.label("Pan").definition(getPropertyUri("Pan")).uom("1").dataType(DataType.FLOAT).build();
 			panComp.setValue(0.0);
 			//var tiltComp = videoHelper.getTiltComponent(-tiltSpeed, tiltSpeed);
-			var tiltComp = helper.createQuantity().name("Tilt").description("Gimbal rotation (usually up-down)")
-					.label("Tilt").definition(getPropertyUri("Tilt")).uom("deg").dataType(DataType.FLOAT).build();
+			var tiltComp = helper.createQuantity().name("Tilt").description("Gimbal rotation speed (usually up-down)")
+					.label("Tilt").definition(getPropertyUri("Tilt")).uom("1").dataType(DataType.FLOAT).build();
 			tiltComp.setValue(0.0);
 
 			//var zoomComp = videoHelper.getZoomComponent(-zoomSpeed, zoomSpeed);
 			var zoomComp = helper.createQuantity().name("ZoomFactor").description("Camera specific zoom factor")
-					.label("Tilt").definition(getPropertyUri("ZoomFactor")).uom("1").dataType(DataType.FLOAT).build();
+					.label("Zoom").definition(getPropertyUri("ZoomFactor")).uom("1").dataType(DataType.FLOAT).build();
 			zoomComp.setValue(0.0);
 			ptzPos.addComponent("cpan", panComp);
 			ptzPos.addComponent("ctilt", tiltComp);
@@ -295,6 +294,7 @@ public class OnvifPtzControl extends AbstractSensorControl<OnvifCameraDriver>
 			PTZVector position = status.getPosition();
 
 			// Note: Some tasking is not supported for certain cameras
+			// ABSOLUTE PAN
         	if (itemID.equals(VideoCamHelper.TASKING_PAN))
         	{
         		float pan = data.getFloatValue();
@@ -308,6 +308,7 @@ public class OnvifPtzControl extends AbstractSensorControl<OnvifCameraDriver>
 				ptz.absoluteMove(ptzProfile.getToken(), position, speed);
 
         	}
+			// ABSOLUTE TILT
         	else if (itemID.equals(VideoCamHelper.TASKING_TILT))
         	{
         		float tilt = data.getFloatValue();
@@ -320,6 +321,7 @@ public class OnvifPtzControl extends AbstractSensorControl<OnvifCameraDriver>
 
 				camera.getPtz().absoluteMove(ptzProfile.getToken(), position, speed);
         	}
+			// ABSOLUTE ZOOM
         	else if (itemID.equals(VideoCamHelper.TASKING_ZOOM))
         	{
         		float zoom = data.getFloatValue();
@@ -331,6 +333,7 @@ public class OnvifPtzControl extends AbstractSensorControl<OnvifCameraDriver>
 
         		camera.getPtz().absoluteMove(ptzProfile.getToken(), position, speed);
         	}
+			// RELATIVE PAN
         	else if (itemID.equals(VideoCamHelper.TASKING_RPAN))
         	{
         		float rpan = data.getFloatValue();
@@ -343,6 +346,7 @@ public class OnvifPtzControl extends AbstractSensorControl<OnvifCameraDriver>
 
 				camera.getPtz().relativeMove(ptzProfile.getToken(), position, speed);
         	}
+			// RELATIVE TILT
         	else if (itemID.equals(VideoCamHelper.TASKING_RTILT))
         	{
         		float rtilt = data.getFloatValue();
@@ -355,6 +359,7 @@ public class OnvifPtzControl extends AbstractSensorControl<OnvifCameraDriver>
 
 				camera.getPtz().relativeMove(ptzProfile.getToken(), position, speed);
         	}
+			// RELATIVE ZOOM
         	else if (itemID.equals(VideoCamHelper.TASKING_RZOOM))
         	{
 				float rzoom = data.getFloatValue();
@@ -366,6 +371,7 @@ public class OnvifPtzControl extends AbstractSensorControl<OnvifCameraDriver>
 
         		camera.getPtz().relativeMove(ptzProfile.getToken(), position, speed);
         	}
+			// GO TO PRESET
         	else if (itemID.equals(VideoCamHelper.TASKING_PTZPRESET))
         	{
 				String preset = data.getStringValue(); // This is in the form "Name: {name}, Token: {token}"
@@ -376,6 +382,7 @@ public class OnvifPtzControl extends AbstractSensorControl<OnvifCameraDriver>
 					throw new CommandException("Could not find this preset to execute.");
 				}
         	}
+			// ADD PRESET
 			else if (itemID.equalsIgnoreCase("presetAdd")) {
 				String presetName = data.getStringValue();
 				//var ptzStatus = camera.getPtz().getStatus(profile.getToken());
@@ -389,8 +396,8 @@ public class OnvifPtzControl extends AbstractSensorControl<OnvifCameraDriver>
 				addPreset(presetName, tokenHolder.value);
 
 			}
+			// REMOVE PRESET
 			else if (itemID.equalsIgnoreCase("presetRemove")) {
-				// TODO: This code appears a couple times, should probably create a function.
 				String preset = data.getStringValue(); // This is in the form "Name: {name}, Token: {token}"
 				String presetToken = preset.substring(preset.lastIndexOf("Token:") + "Token: ".length());
 
@@ -398,9 +405,8 @@ public class OnvifPtzControl extends AbstractSensorControl<OnvifCameraDriver>
 					removePreset(presetToken);
 					ptz.removePreset(ptzProfile.getToken(), presetToken);
 				}
-				//for ()
-
 			}
+			// ABSOLUTE PTZ
         	else if (itemID.equalsIgnoreCase(VideoCamHelper.TASKING_PTZ_POS))
         	{
 				float pan = component.getComponent("pan").getData().getFloatValue();
@@ -420,6 +426,7 @@ public class OnvifPtzControl extends AbstractSensorControl<OnvifCameraDriver>
 
         		camera.getPtz().absoluteMove(ptzProfile.getToken(), position, speed);
         	}
+			// CONTINUOUS PTZ
 			else if (itemID.equalsIgnoreCase("ptzCont"))
 			{
 				PTZSpeed speedVec = new PTZSpeed();
@@ -443,8 +450,7 @@ public class OnvifPtzControl extends AbstractSensorControl<OnvifCameraDriver>
 	    catch (Exception e)
 	    {	    	
 	        throw new CommandException("Error sending PTZ command via ONVIF", e);
-	    }        
-       
+	    }
         return true;
     }
     
@@ -454,25 +460,8 @@ public class OnvifPtzControl extends AbstractSensorControl<OnvifCameraDriver>
         return commandData;
     }
 
-
-    protected void start() throws SensorException
+    protected void start()
     {
-
-		// Immediately stop ptz output if ptz is not supported
-		log.debug("---------SENSOR STARTING---------");
-		DataBlock initCmd;
-		commandData.setSelectedItem(6);
-		//initCmd = commandData.createDataBlock();
-		//commandData.setData(initCmd);
-/*
-		try
-		{
-			execCommand(initCmd);
-		}
-		catch (CommandException e)
-		{
-			throw new SensorException("Init command failed", e);
-		}*/
     }
 
 	public void stop()

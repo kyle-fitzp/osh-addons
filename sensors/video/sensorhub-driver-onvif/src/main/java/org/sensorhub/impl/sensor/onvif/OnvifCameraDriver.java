@@ -46,8 +46,8 @@ import de.onvif.soap.OnvifDevice;
  * protocol
  * </p>
  * 
- * @author Joshua Wolfe <developer.wolfe@gmail.com>
- * @since June 13, 2017
+ * @author Kyle Fitzpatrick
+ * @since April 1, 2025
  */
 public class OnvifCameraDriver extends AbstractSensorModule<OnvifCameraConfig>
 {
@@ -59,9 +59,6 @@ public class OnvifCameraDriver extends AbstractSensorModule<OnvifCameraConfig>
     protected ScheduledExecutorService executor;
     OnvifPtzOutput ptzPosOutput;
     OnvifPtzControl ptzControlInterface;
-    //OnvifDiscoveryControl discoveryControl;
-
-
 
     OnvifDevice camera;
     Profile ptzProfile;
@@ -73,15 +70,18 @@ public class OnvifCameraDriver extends AbstractSensorModule<OnvifCameraConfig>
     String longName;
     URI streamURI;
     String visualConnectionString;
+    String streamTransport = "tcp";
 
-    Thread discoveryThread;
     OnvifCameraConfig config;
 
     public OnvifCameraDriver() throws SensorHubException {
-        //super();
-
+        super();
     }
 
+    /**
+     * When updating the config, also update the discovered WS Onvif devices
+     * @param config
+     */
     @Override
     public void setConfiguration(OnvifCameraConfig config) {
         super.setConfiguration(config);
@@ -107,25 +107,26 @@ public class OnvifCameraDriver extends AbstractSensorModule<OnvifCameraConfig>
         return camera != null;
     }
 
+    // This method override may not be necessary
     @Override
     protected void afterInit() {
         updateSensorDescription();
     }
 
+    /**
+     * ONVIF driver setup.
+     * Creates camera connection, discovers ptz and AV streaming profiles, and creates rtsp streaming connection.
+     * @throws SensorHubException
+     */
     @Override
     protected void doInit() throws SensorHubException {
-        //updateSensorDescription();
-        //removeAllControlInputs();
-        //removeAllOutputs();
         streamingProfile = null;
         ptzProfile = null;
         ptzControlInterface = null;
         ptzPosOutput = null;
         videoOutput = null;
         audioOutput = null;
-        //mpegTsProcessor = null;
 
-        //discoveryControl = null;
         String user = config.networkConfig.user;
         String password = config.networkConfig.password;
 
@@ -169,7 +170,7 @@ public class OnvifCameraDriver extends AbstractSensorModule<OnvifCameraConfig>
         }
 
         // Iterate through profiles, select those with ptz or streaming
-        if (config.streamingConfig.autoStreamEndpoint!=null)
+        if (config.streamingConfig.autoStreamEndpoint != null)
             config.streamingConfig.autoStreamEndpoint.clear();
 
         Profile tempMedia = null;
@@ -197,11 +198,11 @@ public class OnvifCameraDriver extends AbstractSensorModule<OnvifCameraConfig>
                         config.streamingConfig.streamEndpoint = camera.getStreamUri(streamingProfile.getToken());
                         log.debug("Successfully switched to {}: {}", codec, streamingProfile.getVideoEncoderConfiguration().getEncoding().toString());
                     }
+
                 // If a streaming endpoint is specified and matches the current profile stream URI, select it and set codec
                 } else if (streamingProfile == null && config.streamingConfig.streamEndpoint != null && config.streamingConfig.streamEndpoint.equals(camera.getStreamUri(p.getToken()))) {
                     streamingProfile = p;
                     streamingProfile.getVideoEncoderConfiguration().setEncoding(codec);
-                    //config.streamingConfig.streamEndpoint = camera.getStreamUri(streamingProfile.getToken());
                 }
             }
         }
@@ -217,6 +218,15 @@ public class OnvifCameraDriver extends AbstractSensorModule<OnvifCameraConfig>
         }
         if (streamingProfile == null) {
             log.trace("Camera has no profiles capable of video streaming");
+        }
+
+        // Determine streaming transport protocol
+        if (camera.getMedia().getServiceCapabilities().getStreamingCapabilities().getRTPTCP()) {
+            streamTransport = "tcp";
+            log.trace("rtsp streaming protocol: tcp");
+        } else {
+            streamTransport = "udp";
+            log.trace("rtsp streaming protocol: udp");
         }
 
         // Create this driver's ID
@@ -261,22 +271,30 @@ public class OnvifCameraDriver extends AbstractSensorModule<OnvifCameraConfig>
 
             streamURI = URI.create(config.streamingConfig.streamEndpoint);
             // Add credentials if provided
+            if ((user != null || password != null) && (!user.isBlank() || !password.isBlank())) {
+                // In the case that only user or password has a value, make sure the other is set to an empty string.
+                if (user == null || user.isBlank())
+                    user = "";
+                else if (password == null || password.isBlank())
+                    password = "";
 
-            if (user != null && password != null && (!user.isBlank() || !password.isBlank())) {
-                visualConnectionString = "rtsp://" + user + ":" + password + "@" + streamURI.getHost() + ":" + streamURI.getPort() + streamURI.getPath();
-                //config.streamingConfig.streamEndpoint = visualConnectionString;
+                visualConnectionString = "rtsp://" + user + ":" + password + "@" + streamURI.getHost() + ":"
+                        + streamURI.getPort() + streamURI.getPath();
             } else {
                 visualConnectionString = streamURI.toString();
-                //config.streamingConfig.streamEndpoint = visualConnectionString;
+
             }
-            log.debug(visualConnectionString);
+            log.trace("Stream endpoint: {}", visualConnectionString);
             setupStream();
         }
     }
 
+    /**
+     * Start the driver using camera connection established in the init method.
+     * @throws SensorHubException
+     */
     @Override
     public void doStart() throws SensorHubException {
-        //super.doStart();
         // Prevent start when a camera is not connected
         if (config.networkConfig.remoteHost == null || config.networkConfig.remoteHost.isBlank()) {
             throw new SensorHubException("Connection not established. Connect to a camera before starting.");
@@ -296,8 +314,6 @@ public class OnvifCameraDriver extends AbstractSensorModule<OnvifCameraConfig>
 
     @Override
     public void doStop() throws SensorHubException {
-        //super.doStop();
-
         if(ptzPosOutput != null) {
             ptzPosOutput.stop();
             //ptzPosOutput = null;
@@ -310,7 +326,6 @@ public class OnvifCameraDriver extends AbstractSensorModule<OnvifCameraConfig>
             stopStream();
             shutdownExecutor();
         }
-
     }
 
     protected void setupStream() throws SensorHubException {
@@ -321,12 +336,10 @@ public class OnvifCameraDriver extends AbstractSensorModule<OnvifCameraConfig>
     protected void setupExecutor() {
         if (executor == null)
             executor = Executors.newSingleThreadScheduledExecutor();
-
         if (videoOutput != null)
             videoOutput.setExecutor(executor);
         if (audioOutput != null)
             audioOutput.setExecutor(executor);
-
     }
 
     protected void shutdownExecutor() {
@@ -336,9 +349,14 @@ public class OnvifCameraDriver extends AbstractSensorModule<OnvifCameraConfig>
         }
     }
 
+    /**
+     * Open rtsp stream from the ONVIF camera.
+     * Code borrowed from the FFMPEG driver.
+     * @throws SensorHubException
+     */
     protected void openStreamVisual() throws SensorHubException{
     if (mpegTsProcessor == null) {
-        mpegTsProcessor = new MpegTsProcessor(visualConnectionString);
+        mpegTsProcessor = new MpegTsProcessor(visualConnectionString, streamTransport);
 
         // Initialize the MPEG transport stream processor from the source named in the configuration.
         if (mpegTsProcessor.openStream()) {
@@ -370,7 +388,6 @@ public class OnvifCameraDriver extends AbstractSensorModule<OnvifCameraConfig>
                     }
                     audioOutput.doInit();
                     addOutput(audioOutput, false);
-
                 }
                 // Set audio stream packet listener to audio output
                 mpegTsProcessor.setAudioDataBufferListener(audioOutput);
@@ -416,5 +433,4 @@ public class OnvifCameraDriver extends AbstractSensorModule<OnvifCameraConfig>
             }
         }
     }
-
 }
