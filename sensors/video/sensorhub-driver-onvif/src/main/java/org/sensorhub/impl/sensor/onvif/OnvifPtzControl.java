@@ -85,7 +85,7 @@ public class OnvifPtzControl extends AbstractSensorControl<OnvifCameraDriver>
 
 	/**
 	 * Inverts preset mappings and returns as a list of Strings.
-Min	 * @return ArrayList of presets in the form "value: key" (name: token)
+	 * @return ArrayList of presets in the form "value: key" (name: token)
 	 */
 	protected List<String> mapToAllowedValues() {
 		ArrayList<String> nameValues = new ArrayList<String>();

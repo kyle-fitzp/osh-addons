@@ -28,6 +28,8 @@ import jakarta.xml.ws.http.HTTPException;
 import net.opengis.gml.v32.TimePosition;
 import net.opengis.gml.v32.impl.TimeInstantImpl;
 import net.opengis.swe.v20.Text;
+import org.bytedeco.ffmpeg.avutil.AVDictionary;
+import org.bytedeco.ffmpeg.global.avutil;
 import org.sensorhub.api.sensor.SensorException;
 import org.sensorhub.impl.sensor.AbstractSensorModule;
 import org.onvif.ver10.schema.*;
@@ -182,19 +184,17 @@ public class OnvifCameraDriver extends AbstractSensorModule<OnvifCameraConfig>
             }
 
             // Select a profile that supports video
-            if (p.getVideoEncoderConfiguration() != null && p.getVideoEncoderConfiguration() != null) {
+            if (p.getVideoEncoderConfiguration() != null) {
                 config.streamingConfig.autoStreamEndpoint.add(camera.getStreamUri(p.getToken()));
 
                 // Search for profile with preferred codec if endpoint is not specified
                 if (streamingProfile == null && (config.streamingConfig.streamEndpoint == null || config.streamingConfig.streamEndpoint.isBlank())) {
                     tempMedia = p;
-                    VideoEncoderConfigurationOptions encoderConfig = camera.getMedia().getVideoEncoderConfigurationOptions(null, p.getToken());
+                    //VideoEncoderConfigurationOptions encoderConfig = camera.getMedia().getVideoEncoderConfigurationOptions(null, p.getToken());
                     // If preferred codec is supported, select it
-                    if (codec == VideoEncoding.JPEG && encoderConfig.getJPEG() != null
-                     || codec == VideoEncoding.MPEG_4 && encoderConfig.getMPEG4() != null
-                     || codec == VideoEncoding.H_264 && encoderConfig.getH264() != null){
+                    if (codec == p.getVideoEncoderConfiguration().getEncoding()){
                         streamingProfile = p;
-                        streamingProfile.getVideoEncoderConfiguration().setEncoding(codec);
+                        //streamingProfile.getVideoEncoderConfiguration().setEncoding(codec);
                         config.streamingConfig.streamEndpoint = camera.getStreamUri(streamingProfile.getToken());
                         log.debug("Successfully switched to {}: {}", codec, streamingProfile.getVideoEncoderConfiguration().getEncoding().toString());
                     }
@@ -202,7 +202,7 @@ public class OnvifCameraDriver extends AbstractSensorModule<OnvifCameraConfig>
                 // If a streaming endpoint is specified and matches the current profile stream URI, select it and set codec
                 } else if (streamingProfile == null && config.streamingConfig.streamEndpoint != null && config.streamingConfig.streamEndpoint.equals(camera.getStreamUri(p.getToken()))) {
                     streamingProfile = p;
-                    streamingProfile.getVideoEncoderConfiguration().setEncoding(codec);
+                    //streamingProfile.getVideoEncoderConfiguration().setEncoding(codec);
                 }
             }
         }
@@ -236,9 +236,11 @@ public class OnvifCameraDriver extends AbstractSensorModule<OnvifCameraConfig>
         longName = shortName + "_" + modelNumber + "_" + serialNumber;
 
         // generate identifiers.
-        String streamPath = URI.create(config.streamingConfig.streamEndpoint).getPath();
-        generateUniqueID("urn:onvif:cam:", serialNumber + (streamPath != null ? (":" + streamPath) : ""));
-        generateXmlID("ONVIF_CAM_", serialNumber + (streamPath != null ? (":" + streamPath) : ""));
+        streamURI = URI.create(config.streamingConfig.streamEndpoint);
+        String streamId = streamingProfile.getName() + ":" + streamingProfile.getVideoEncoderConfiguration().getEncoding();
+
+        generateUniqueID("urn:onvif:cam:", serialNumber + (streamId != null ? (":" + streamId) : ""));
+        generateXmlID("ONVIF_CAM_", serialNumber + (streamId != null ? (":" + streamId) : ""));
 
         // Add inputs/outputs for supported features
 
@@ -269,7 +271,7 @@ public class OnvifCameraDriver extends AbstractSensorModule<OnvifCameraConfig>
             videoOutput = null;
             audioOutput = null;
 
-            streamURI = URI.create(config.streamingConfig.streamEndpoint);
+
             // Add credentials if provided
             if ((user != null || password != null) && (!user.isBlank() || !password.isBlank())) {
                 // In the case that only user or password has a value, make sure the other is set to an empty string.
@@ -278,8 +280,10 @@ public class OnvifCameraDriver extends AbstractSensorModule<OnvifCameraConfig>
                 else if (password == null || password.isBlank())
                     password = "";
 
-                visualConnectionString = "rtsp://" + user + ":" + password + "@" + streamURI.getHost() + ":"
-                        + streamURI.getPort() + streamURI.getPath();
+                //visualConnectionString = "rtsp://" + user + ":" + password + "@" + streamURI.getHost() + ":"
+                //        + streamURI.getPort() + streamURI.getPath();
+                visualConnectionString = new StringBuilder(streamURI.toString())
+                        .insert(streamURI.toString().indexOf("://") + 3, user + ":" + password + "@").toString();
             } else {
                 visualConnectionString = streamURI.toString();
 
@@ -356,7 +360,9 @@ public class OnvifCameraDriver extends AbstractSensorModule<OnvifCameraConfig>
      */
     protected void openStreamVisual() throws SensorHubException{
     if (mpegTsProcessor == null) {
-        mpegTsProcessor = new MpegTsProcessor(visualConnectionString, streamTransport);
+        mpegTsProcessor = new MpegTsProcessor(visualConnectionString);
+        // Remove the following line if causing an error. Part of a separate ffmpeg mod.
+        mpegTsProcessor.setAvOption("transport", streamTransport);
 
         // Initialize the MPEG transport stream processor from the source named in the configuration.
         if (mpegTsProcessor.openStream()) {

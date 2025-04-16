@@ -68,7 +68,6 @@ public class OnvifCameraConfig extends SensorConfig {
         @DisplayInfo(label = "Discovered Stream Endpoints")
         public TreeSet<String> autoStreamEndpoint = new TreeSet<>();
 
-        @Required
         @DisplayInfo(label="Preferred Codec", desc="Select video codec for streaming.")
         public VideoEncoding codec = VideoEncoding.JPEG;
     }
