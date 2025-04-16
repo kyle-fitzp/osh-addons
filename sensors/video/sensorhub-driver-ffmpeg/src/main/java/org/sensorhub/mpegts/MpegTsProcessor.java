@@ -24,6 +24,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.annotation.Nonnull;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -118,9 +120,15 @@ public class MpegTsProcessor extends Thread {
     volatile boolean loop;
 
     /**
-     * Desired transport protocol. udp or tcp (or empty/null for default behavior).
+     * If true, listen for a connection over the range minPort-maxPort.
      */
-    private String transport;
+    private boolean doListen = false;
+
+    /**
+     * FFmpeg streaming options.
+     * See a mostly complete list of options here <a href="https://ffmpeg.org/ffmpeg-protocols.html">FFmpeg Protocols</a>.
+     */
+    private AVDictionary avOptions;
 
     /**
      * Executor to restart the stream in case of failure.
@@ -132,17 +140,8 @@ public class MpegTsProcessor extends Thread {
      *
      * @param source A string representation of the file or url to use as the source of the transport stream to demux.
      */
-    public MpegTsProcessor(String source, String transport) {
-        this(source, 0, false, transport);
-    }
-
-    /**
-     * Constructor
-     *
-     * @param source A string representation of the file or url to use as the source of the transport stream to demux.
-     */
     public MpegTsProcessor(String source) {
-        this(source, 0, false, null);
+        this(source, 0, false);
     }
 
     /**
@@ -153,24 +152,12 @@ public class MpegTsProcessor extends Thread {
      * @param loop   If true, play the video file continuously in a loop.
      */
     public MpegTsProcessor(String source, int fps, boolean loop) {
-        this(source, fps, loop, null);
-    }
-
-    /**
-     * Constructor with more options when playing back from a file.
-     *
-     * @param source A string representation of the file or url to use as the source of the transport stream to demux.
-     * @param fps    The desired playback FPS (use 0 for decoding the TS file as fast as possible).
-     * @param loop   If true, play the video file continuously in a loop.
-     * @param transport Desired transport protocol. udp or tcp (or empty/null for default behavior)
-     */
-    public MpegTsProcessor(String source, int fps, boolean loop, String transport) {
         super(WORKER_THREAD_NAME);
 
         this.streamSource = source;
         this.fps = fps;
         this.loop = loop;
-        this.transport = transport;
+        initAvOptions();
     }
 
     /**
@@ -187,15 +174,7 @@ public class MpegTsProcessor extends Thread {
         // Create a new AV Format Context for I/O
         avFormatContext = new AVFormatContext(null);
 
-        // Set timeout
-        var options = new AVDictionary(null);
-        avutil.av_dict_set(options, "timeout", "3000000", 0);
-
-        // Set transport protocol
-        if (transport != null && (transport.equals("udp") || transport.equals("tcp")))
-            avutil.av_dict_set(options, "rtsp_transport", transport, 0);
-
-        int returnCode = avformat.avformat_open_input(avFormatContext, streamSource, null, options);
+        int returnCode = avformat.avformat_open_input(avFormatContext, streamSource, null, avOptions);
         logger.debug("returnCode: {}", returnCode);
 
         // Attempt to open the stream, streamPath can be a file or URL
@@ -340,6 +319,38 @@ public class MpegTsProcessor extends Thread {
 
         logger.debug("Audio sample rate: {}", sampleRate);
         return sampleRate;
+    }
+
+    /**
+     * Sets the avOptions for video streaming.
+     * See a mostly complete list of options here <a href="https://ffmpeg.org/ffmpeg-protocols.html">FFmpeg Protocols</a>.
+     *
+     * @param option The option to set
+     * @param value The value of the option
+     */
+    public void setAvOption(String option, String value) {
+        logger.info("Set option {} to {}", option, value);
+        avutil.av_dict_set(avOptions, option, value, 0);
+    }
+
+    /**
+     * Set multiple avOptions at once
+     * See a mostly complete list of options here <a href="https://ffmpeg.org/ffmpeg-protocols.html">FFmpeg Protocols</a>.
+     *
+     * @param options Map of options, where each FFmpeg option is mapped to a value to be set
+     */
+    public void setAvOptions(Map<String, List<String>> options) {
+        for (String option : options.keySet()) {
+            for (String value : options.get(option))
+                setAvOption(option, value);
+        }
+    }
+
+    /**
+     * Creates a new AVDictionary for avOptions, setting the timeout to 30 seconds.
+     */
+    public void initAvOptions() {
+        this.avOptions = new AVDictionary();
     }
 
     /**

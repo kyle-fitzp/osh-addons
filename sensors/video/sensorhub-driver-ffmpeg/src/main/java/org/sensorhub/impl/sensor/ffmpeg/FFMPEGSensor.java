@@ -20,6 +20,9 @@ import org.sensorhub.mpegts.MpegTsProcessor;
 import org.vast.swe.SWEConstants;
 
 import java.net.UnknownHostException;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.List;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 
@@ -47,6 +50,13 @@ public class FFMPEGSensor extends AbstractSensorModule<FFMPEGConfig> {
      */
     protected AudioOutput<FFMPEGSensor> audioOutput;
 
+    /**
+     * FFmpeg config avOptions parsed, stored as key-value pairs.
+     */
+    protected HashMap<String, List<String>> optionsMap = new HashMap<>();
+
+
+
     @Override
     protected void doInit() throws SensorHubException {
         super.doInit();
@@ -57,6 +67,10 @@ public class FFMPEGSensor extends AbstractSensorModule<FFMPEGConfig> {
 
         if (config.connection.fps < 0)
             throw new SensorHubException("FPS must be a positive value");
+
+        // Parse config and populate options map
+        optionsMap.clear();
+        parseConfigOptions();
 
         // Every time we do init we have to tear down the mpegTsProcessor,
         // just in case they changed some setting that might cause the video output to be different.
@@ -82,6 +96,20 @@ public class FFMPEGSensor extends AbstractSensorModule<FFMPEGConfig> {
 
         // Open up the stream so that we can get the video output.
         openStream();
+    }
+
+    protected void parseConfigOptions() {
+        for (String opt : config.optionsList) {
+            String option = opt.substring(0, opt.indexOf(":")).replaceAll("\\s", "");
+            String value = opt.substring(opt.indexOf(":") + 1).replaceAll("\\s", "");
+            if (optionsMap.containsKey(option)) {
+                optionsMap.get(option).add(value);
+            }
+            else {
+                optionsMap.put(option, Arrays.asList(value));
+            }
+
+        }
     }
 
     @Override
@@ -214,6 +242,9 @@ public class FFMPEGSensor extends AbstractSensorModule<FFMPEGConfig> {
             logger.info("Stream already opened.");
             return true;
         }
+
+        logger.info("Setting avOptions.");
+        mpegTsProcessor.setAvOptions(optionsMap);
 
         // Initialize the MPEG transport stream processor from the source named in the configuration.
         if (mpegTsProcessor.openStream()) {

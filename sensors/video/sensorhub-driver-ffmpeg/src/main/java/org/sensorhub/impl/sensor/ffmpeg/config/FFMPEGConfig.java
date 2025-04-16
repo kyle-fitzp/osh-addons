@@ -15,6 +15,10 @@ import org.sensorhub.api.config.DisplayInfo;
 import org.sensorhub.api.sensor.PositionConfig;
 import org.sensorhub.api.sensor.SensorConfig;
 
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+
 /**
  * Configuration settings for the FFmpeg driver exposed via the OpenSensorHub Admin panel.
  */
@@ -47,5 +51,13 @@ public class FFMPEGConfig extends SensorConfig {
     @Override
     public PositionConfig.EulerOrientation getOrientation() {
         return positionConfig.orientation;
+    }
+
+    @DisplayInfo(label = "AvOptions", desc = "FFmpeg audio/visual streaming options in the form OPTION:VALUE")
+    public ArrayList<String> optionsList = new ArrayList<>();
+
+    public FFMPEGConfig() {
+        optionsList.add("timeout: 30000000");
+        optionsList.add("rw_timeout: 30000000");
     }
 }
