@@ -60,11 +60,7 @@ public class AnpvizPtzControl extends AbstractSensorControl<AnpvizDriver> {
 	protected void init() throws SensorException {
 		logger.debug("Initializing PTZ control");
 		AnpvizConfig config = parentSensor.getConfiguration();
-		try {
-			config.init();
-		} catch (IOException e) {
-			logger.error("Cannot init ptz control");
-		}
+
 		presetsHandler = new AnpvizPTZpresetsHandler(config.ptz);
 		relMoveHandler = new AnpvizPTZrelMoveHandler(config.ptz);
 

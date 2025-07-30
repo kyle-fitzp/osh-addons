@@ -25,6 +25,7 @@ import org.sensorhub.impl.security.ClientAuth;
 import org.sensorhub.impl.sensor.AbstractSensorModule;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import java.net.Socket;
 
 
 /**
@@ -59,6 +60,13 @@ public class AnpvizDriver extends AbstractSensorModule<AnpvizConfig> {
 		ptzControlInterface = null;
 		ptzSupported = false;
 
+		try {
+			var temp = new AnpvizDevice(config.http.remoteHost, config.http.remotePort,
+					config.http.user, config.http.password);
+		} catch (Exception e) {
+			logger.error(e.getMessage());
+		}
+		/*
 		// create connection handler
         this.connection = new RobustIPConnection(this, config.connection, "Anpviz Camera")
         {
@@ -82,6 +90,8 @@ public class AnpvizDriver extends AbstractSensorModule<AnpvizConfig> {
 			logger.error("Cannot create ptz interfaces", e);
 			throw new SensorException("Cannot create ptz interfaces", e);
 		}
+
+		 */
 	}
 
 	@Override

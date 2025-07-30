@@ -47,15 +47,19 @@ public class AnpvizVideoOutput extends RTPVideoOutput<AnpvizDriver>
 
     public void init() throws SensorException
     {
+        /*
         VideoResolution res = parentSensor.getConfiguration().video.getResolution();
         super.init(res.getWidth(), res.getHeight());
+        
+         */
     }
 	
 
     public void start() throws SensorException
     {
+        /*
         AnpvizConfig config = parentSensor.getConfiguration();
-        super.start(config.video, config.rtsp, config.connection.connectTimeout);
+        //super.start(config.video, config.rtsp, config.connection.connectTimeout);
                 
         // start watchdog thread to detect disconnections
         final long maxFramePeriod = 10000 / config.video.frameRate;
@@ -76,6 +80,8 @@ public class AnpvizVideoOutput extends RTPVideoOutput<AnpvizDriver>
         
         watchdog = new Timer();
         watchdog.scheduleAtFixedRate(checkFrameTask, 0L, 10000L);
+
+         */
     }
 
 
