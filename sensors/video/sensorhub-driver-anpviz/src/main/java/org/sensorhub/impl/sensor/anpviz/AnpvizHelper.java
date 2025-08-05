@@ -16,10 +16,9 @@ Developer are Copyright (C) 2016 the Initial Developer. All Rights Reserved.
 package org.sensorhub.impl.sensor.anpviz;
 
 import java.util.Collection;
+
+import net.opengis.swe.v20.*;
 import org.sensorhub.impl.sensor.videocam.VideoCamHelper;
-import net.opengis.swe.v20.AllowedTokens;
-import net.opengis.swe.v20.DataChoice;
-import net.opengis.swe.v20.Text;
 
 
 /**
@@ -35,33 +34,64 @@ public class AnpvizHelper extends VideoCamHelper
 {
     // PTZ tasking commands
     public static final String TASKING_PTZPRESET = "preset";
+    public static final String TASKING_PTZPRESET_GOTO = "presetGoto";
+    public static final String TASKING_PTZPRESET_ADD = "presetAdd";
+    public static final String TASKING_PTZPRESET_REMOVE = "presetRemove";
     public static final String TASKING_PTZREL = "relMove";
+    public static String TASKING_PTZCONT = "contMove";
 
 
-    public DataChoice getPtzTaskParameters(String name, Collection<String> relMoveNames, Collection<String> presetNames)
+    public DataChoice getPtzTaskParameters(String name)
     {
         DataChoice commandData = this.newDataChoice();
         commandData.setName(name);
+
+        // -100 and 100 are arbitrary
+        Quantity pan = getPanComponent(-100, 100);
+        //commandData.addItem(TASKING_PAN, pan);
+        Quantity tilt = getTiltComponent(-100, 100);
+        //commandData.addItem(TASKING_TILT, tilt);
+        Quantity zoom = getZoomComponent(-100, 100);
+        //commandData.addItem(TASKING_ZOOM, zoom);
         
         // PTZ Preset Positions
-        Text preset = newText();
-        preset.setDefinition(getPropertyUri("CameraPresetPositionName"));
-        preset.setLabel("Preset Camera Position");
-        AllowedTokens presetTokens = newAllowedTokens();
-        for (String position : presetNames)
-            presetTokens.addValue(position);
-        preset.setConstraint(presetTokens);
-        commandData.addItem(TASKING_PTZPRESET, preset);
+        var presets = newDataChoice();
+        presets.setName(TASKING_PTZPRESET);
+        presets.setDefinition(getPropertyUri("CameraPresetPositionName"));
+        presets.setLabel("Preset Camera Positions");
+
+        var presetGoto = newCategory();
+        presetGoto.setName(TASKING_PTZPRESET_GOTO);
+        presetGoto.setLabel("Go To Preset");
+        var allowedTokens = newAllowedTokens();
+        presetGoto.setConstraint(allowedTokens);
+        presets.addItem(TASKING_PTZPRESET_GOTO, presetGoto);
+
+        var presetRemove = newCategory();
+        presetRemove.setName(TASKING_PTZPRESET_REMOVE);
+        presetRemove.setLabel("Remove Preset");
+        var allowedTokensRemove = newAllowedTokens();
+        presetRemove.setConstraint(allowedTokensRemove);
+        presets.addItem(TASKING_PTZPRESET_REMOVE, presetRemove);
+
+        var presetAdd = newCount(DataType.INT);
+        presetAdd.setName(TASKING_PTZPRESET_ADD);
+        presetAdd.setLabel("Add Preset");
+        var range = newAllowedValues();
+        range.addInterval(new double[] {1, 255});
+        presetAdd.setConstraint(range);
+        presets.addItem(TASKING_PTZPRESET_ADD, presetAdd);
+
+        commandData.addItem(TASKING_PTZPRESET, presets);
         
-        // PTZ Relative Movements
-        Text relMove = newText();
-        relMove.setDefinition(getPropertyUri("CameraRelativeMovementName"));
-        relMove.setLabel("Camera Relative Movements");
-        AllowedTokens relMoveTokens = newAllowedTokens();
-        for (String position2 : relMoveNames)
-        	relMoveTokens.addValue(position2);
-        relMove.setConstraint(relMoveTokens);
-        commandData.addItem(TASKING_PTZREL, relMove);
+        // PTZ Continuous Movements
+        DataRecord contMove = newDataRecord(3);
+        contMove.setDefinition(getPropertyUri("CameraContinuousMovementName"));
+        contMove.setLabel("Camera Continuous Movement");
+        contMove.addComponent("pan", pan.copy());
+        contMove.addComponent("tilt", tilt.copy());
+        contMove.addComponent("zoom", zoom.copy());
+        commandData.addItem(TASKING_PTZCONT, contMove);
         
         return commandData;
     }

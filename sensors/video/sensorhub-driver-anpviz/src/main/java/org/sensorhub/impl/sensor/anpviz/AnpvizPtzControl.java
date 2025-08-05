@@ -16,25 +16,23 @@ Developer are Copyright (C) 2016 the Initial Developer. All Rights Reserved.
 package org.sensorhub.impl.sensor.anpviz;
 
 import java.io.BufferedReader;
-import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.URL;
 import java.util.Collection;
+
+import net.opengis.swe.v20.*;
 import org.sensorhub.api.command.CommandException;
 import org.sensorhub.api.sensor.SensorException;
 import org.sensorhub.impl.sensor.AbstractSensorControl;
-import org.sensorhub.impl.sensor.anpviz.ptz.AnpvizPTZpreset;
-import org.sensorhub.impl.sensor.anpviz.ptz.AnpvizPTZpresetsHandler;
-import org.sensorhub.impl.sensor.anpviz.ptz.AnpvizPTZrelMove;
-import org.sensorhub.impl.sensor.anpviz.ptz.AnpvizPTZrelMoveHandler;
+import org.sensorhub.impl.sensor.anpviz.ptz.AnpvizPtzTuple;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.vast.data.AllowedTokensImpl;
+import org.vast.data.CategoryImpl;
 import org.vast.data.DataChoiceImpl;
 
-import net.opengis.swe.v20.DataBlock;
-import net.opengis.swe.v20.DataChoice;
-import net.opengis.swe.v20.DataComponent;
+import org.vast.swe.SWEHelper;
 
 /**
  * <p>
@@ -50,8 +48,9 @@ public class AnpvizPtzControl extends AbstractSensorControl<AnpvizDriver> {
 
 	DataChoice commandData;
 	AnpvizDriver DriverDataInterface;
-	AnpvizPTZpresetsHandler presetsHandler;
-	AnpvizPTZrelMoveHandler relMoveHandler;
+	//AnpvizPTZpresetsHandler presetsHandler;
+	//AnpvizPTZrelMoveHandler relMoveHandler;
+	SWEHelper helper = new SWEHelper();
 
 	protected AnpvizPtzControl(AnpvizDriver driver) {
 		super("ptzControl", driver);
@@ -60,25 +59,25 @@ public class AnpvizPtzControl extends AbstractSensorControl<AnpvizDriver> {
 	protected void init() throws SensorException {
 		logger.debug("Initializing PTZ control");
 		AnpvizConfig config = parentSensor.getConfiguration();
-
-		presetsHandler = new AnpvizPTZpresetsHandler(config.ptz);
-		relMoveHandler = new AnpvizPTZrelMoveHandler(config.ptz);
+		//relMoveHandler = new AnpvizPTZrelMoveHandler(config.ptz);
 
 		// build SWE data structure for the tasking parameters
 		AnpvizHelper anpvizHelper = new AnpvizHelper();
-		Collection<String> presetList = presetsHandler.getPresetNames();
-		Collection<String> relMoveList = relMoveHandler.getRelMoveNames();
-		logger.info("presetList = " + presetList);
-		logger.info("relMoveList = " + relMoveList);
-		commandData = anpvizHelper.getPtzTaskParameters(getName(), relMoveList, presetList);
+
+		//Collection<String> relMoveList = relMoveHandler.getRelMoveNames();
+
+		//logger.info("relMoveList = " + relMoveList);
+		commandData = anpvizHelper.getPtzTaskParameters(getName());
+		updatePresetsConstraint();
 	}
 
 	protected void start() throws SensorException {
 		// reset to Pan=0, Tilt=0, Zoom=0
 		DataBlock initCmd;
-		commandData.setSelectedItem(7);
+		commandData.setSelectedItem(1);
 		initCmd = commandData.createDataBlock();
-		
+		updatePresetsConstraint();
+
 		try
         {
             execCommand(initCmd);
@@ -97,6 +96,23 @@ public class AnpvizPtzControl extends AbstractSensorControl<AnpvizDriver> {
 		return commandData;
 	}
 
+	protected void updatePresetsConstraint() {
+		int[] presets = parent.device.getPresets();
+		var presetsData = ((DataChoice)commandData.getItem(AnpvizHelper.TASKING_PTZPRESET));
+		AllowedTokens tokens = helper.newAllowedTokens();
+		for (int preset : presets) {
+			tokens.addValue(Integer.toString(preset));
+		}
+		((Category)presetsData.getItem(AnpvizHelper.TASKING_PTZPRESET_REMOVE)).setConstraint(tokens);
+		((Category)presetsData.getItem(AnpvizHelper.TASKING_PTZPRESET_GOTO)).setConstraint(tokens);
+
+		String defaultPreset;
+		if ((defaultPreset = tokens.getValueList().get(0)) != null) {
+			((Category)presetsData.getItem(AnpvizHelper.TASKING_PTZPRESET_REMOVE)).setValue(defaultPreset);
+			((Category)presetsData.getItem(AnpvizHelper.TASKING_PTZPRESET_GOTO)).setValue(defaultPreset);
+		}
+	}
+
 	@Override
 	protected boolean execCommand(DataBlock command) throws CommandException {
 		// associate command data to msg structure definition
@@ -110,6 +126,23 @@ public class AnpvizPtzControl extends AbstractSensorControl<AnpvizDriver> {
 		try {
 			// preset position
 			if (component.getName().equals(AnpvizHelper.TASKING_PTZPRESET)) {
+				DataComponent presetItem = ((DataChoice)component).getSelectedItem();
+
+				switch (presetItem.getName()) {
+					case AnpvizHelper.TASKING_PTZPRESET_REMOVE:
+						parent.device.removePreset(Integer.parseInt(((Category)presetItem).getValue()));
+						break;
+					case AnpvizHelper.TASKING_PTZPRESET_ADD:
+						parent.device.addPreset(((Count)presetItem).getValue());
+						break;
+					case AnpvizHelper.TASKING_PTZPRESET_GOTO:
+						parent.device.gotoPreset(Integer.parseInt(((Category)presetItem).getValue()));
+						break;
+					default:
+						throw new CommandException("Invalid command.");
+				}
+				updatePresetsConstraint();
+				/*
 				AnpvizPTZpreset preset = presetsHandler.getPreset(data.getStringValue());
 				logger.info("Tasking with PTZ preset " + preset.name);
 
@@ -142,50 +175,27 @@ public class AnpvizPtzControl extends AbstractSensorControl<AnpvizDriver> {
 					}
 				}
 				is.close();
+				 */
 			}
 
-			// relative movement
-			else if (component.getName().equals(AnpvizHelper.TASKING_PTZREL)) {
-				logger.info("Tasking with relative Movement...");
-				AnpvizPTZrelMove relMove = relMoveHandler.getRelMove(data.getStringValue());
-				logger.info("rel move name = " + relMove.name);
-				URL optionsURL = new URL("http://" + parentSensor.getConfiguration().http.remoteHost + ":"
-						+ Integer.toString(parentSensor.getConfiguration().http.remotePort)
-						+ "/cgi-bin/CGIProxy.fcgi?cmd=" + relMove.cgi + "&usr="
-						+ parentSensor.getConfiguration().http.user + "&pwd="
-						+ parentSensor.getConfiguration().http.password);
-				// add BufferReader and read first line; if "Error", read second
-				// line and log error
-				InputStream is = optionsURL.openStream();
-				BufferedReader reader = null;
-				reader = new BufferedReader(new InputStreamReader(is));
-				String line;
-				while ((line = reader.readLine()) != null) {
-					String[] tokens = line.split("<|\\>");
-					if (tokens[1].trim().equals("result")) {
-						if (!tokens[2].trim().equalsIgnoreCase("0"))
-							logger.info("Unrecognized Command");
-						else
-							logger.info("Successful Command");
-					}
-				}
-				is.close();
-				// use timing to control amount of movement
-				logger.info("moveTime = " + relMove.moveTime);
-				Thread.sleep(relMove.moveTime);
 
-				URL optionsURLstop = new URL("http://" + parentSensor.getConfiguration().http.remoteHost + ":"
-						+ Integer.toString(parentSensor.getConfiguration().http.remotePort)
-						+ "/cgi-bin/CGIProxy.fcgi?cmd=ptzStopRun" + "&usr=" + parentSensor.getConfiguration().http.user
-						+ "&pwd=" + parentSensor.getConfiguration().http.password);
-				InputStream isStop = optionsURLstop.openStream();
-				isStop.close();
+
+			// relative movement
+			// TODO: Add zoom movement
+			else if (component.getName().equals(AnpvizHelper.TASKING_PTZCONT)) {
+				updatePresetsConstraint();
+				logger.info("Tasking with continuous Movement...");
+				int pan = (int)data.getFloatValue(0);
+				int tilt = (int)data.getFloatValue(1);
+				int zoom = (int)data.getFloatValue(2);
+
+				AnpvizPtzTuple moveVec = new AnpvizPtzTuple(pan, tilt);
+				parent.device.ptzMove(moveVec);
 			}
 
 		} catch (Exception e) {
 			throw new CommandException("Error connecting to Anpviz PTZ control", e);
 		}
-
 		return true;
 	}
 }

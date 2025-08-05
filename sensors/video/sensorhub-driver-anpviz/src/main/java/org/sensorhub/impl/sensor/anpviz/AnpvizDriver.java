@@ -17,7 +17,7 @@ package org.sensorhub.impl.sensor.anpviz;
 
 import java.io.IOException;
 import java.net.HttpURLConnection;
-import java.net.URL;
+
 import org.sensorhub.api.common.SensorHubException;
 import org.sensorhub.api.sensor.SensorException;
 import org.sensorhub.impl.comm.RobustIPConnection;
@@ -25,7 +25,8 @@ import org.sensorhub.impl.security.ClientAuth;
 import org.sensorhub.impl.sensor.AbstractSensorModule;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import java.net.Socket;
+
+import java.util.concurrent.ScheduledExecutorService;
 
 
 /**
@@ -38,16 +39,19 @@ import java.net.Socket;
  * @since September 2016
  */
 public class AnpvizDriver extends AbstractSensorModule<AnpvizConfig> {
+
 	private static final Logger logger = LoggerFactory.getLogger(AnpvizDriver.class);
 	private AnpvizPtzControl ptzControlInterface;
 	RobustIPConnection connection;
 	AnpvizVideoOutput videoDataInterface;
 
+	AnpvizDevice device;
 	boolean ptzSupported = false;
 	String serialNumber;
 	String modelNumber;
-
 	String hostUrl;
+
+	protected ScheduledExecutorService executor;
 
 	public AnpvizDriver() {
 	}	
@@ -61,31 +65,31 @@ public class AnpvizDriver extends AbstractSensorModule<AnpvizConfig> {
 		ptzSupported = false;
 
 		try {
-			var temp = new AnpvizDevice(config.http.remoteHost, config.http.remotePort,
+			device = new AnpvizDevice(config.http.remoteHost, config.http.remotePort,
 					config.http.user, config.http.password);
 		} catch (Exception e) {
-			logger.error(e.getMessage());
+			throw new SensorHubException("Could not connect to Anpviz camera.", e);
 		}
+
+		try {
+			createVideoInterface();
+		} catch (Exception e) {
+			logger.error(e.getMessage());
+			videoDataInterface = null;
+		}
+
+		try {
+			createPtzInterface();
+		}  catch (Exception e) {
+			logger.error(e.getMessage());
+			ptzSupported = false;
+			ptzControlInterface = null;
+		}
+
 		/*
-		// create connection handler
-        this.connection = new RobustIPConnection(this, config.connection, "Anpviz Camera")
-        {
-            public boolean tryConnect() throws IOException
-            {
-            	// just check host is reachable on specified RTSP port
-                return tryConnectTCP(config.rtsp.remoteHost, config.rtsp.remotePort);
-            }
-        };
-
-		// create I/O objects
-		// video output
-		videoDataInterface = new AnpvizVideoOutput(this);
-		videoDataInterface.init();
-		addOutput(videoDataInterface, false);
-
 		// PTZ control and status
 		try {
-			createPtzInterfaces();
+
 		} catch (IOException e) {
 			logger.error("Cannot create ptz interfaces", e);
 			throw new SensorException("Cannot create ptz interfaces", e);
@@ -96,29 +100,22 @@ public class AnpvizDriver extends AbstractSensorModule<AnpvizConfig> {
 
 	@Override
 	protected synchronized void doStart() throws SensorHubException {
-		// wait for valid connection to camera
-		connection.waitForConnection();
-
-		// start video output
-		videoDataInterface.start();
-
-		// if PTZ supported
-		if (ptzSupported) {
-			ptzControlInterface.start();
+		super.doStart();
+		if (videoDataInterface != null) {
+			videoDataInterface.start();
 		}
+		// wait for valid connection to camera
+		//connection.waitForConnection();
+
 	}
 
 	@Override
-	protected synchronized void doStop() {
-
-		if (connection != null)
-			connection.cancel();
-
-		if (ptzControlInterface != null)
-			ptzControlInterface.stop();
-
-		if (videoDataInterface != null)
+	protected synchronized void doStop() throws SensorHubException {
+		super.doStop();
+		if (videoDataInterface != null) {
 			videoDataInterface.stop();
+		}
+
 	}
 
 	@Override
@@ -134,41 +131,38 @@ public class AnpvizDriver extends AbstractSensorModule<AnpvizConfig> {
 	public void setConfiguration(AnpvizConfig config) {
 		super.setConfiguration(config);
 
-		// use same config for HTTP and RTSP by default
-		if (config.rtsp.localAddress == null)
-			config.rtsp.localAddress = config.http.localAddress;
-		if (config.rtsp.remoteHost == null)
-			config.rtsp.remoteHost = config.http.remoteHost;
-		if (config.rtsp.user == null)
-			config.rtsp.user = config.http.user;
-		if (config.rtsp.password == null)
-			config.rtsp.password = config.http.password;
-
-		// compute full host URL
-		hostUrl = "http://" + config.http.remoteHost + ":" + config.http.remotePort + "/cgi-bin";
 	};
 
 	@Override
 	public boolean isConnected() {
-		if (connection == null)
-			return false;
-
-		return connection.isConnected();
+		return device != null;
 	}
 
-	protected void createPtzInterfaces() throws SensorException, IOException {
-		// connect to PTZ URL
-		HttpURLConnection conn = null;
-		try {
-			URL optionsURL = new URL("http://" + config.http.remoteHost + ":" + Integer.toString(config.http.remotePort)
-					+ "/cgi-bin/CGIProxy.fcgi?cmd=getDevInfo&usr=" + config.http.user + "&pwd=" + config.http.password);
-			conn = (HttpURLConnection) optionsURL.openConnection();
-			conn.setConnectTimeout(config.connection.connectTimeout);
-			conn.setReadTimeout(config.connection.connectTimeout);
-			conn.connect();
-		} catch (IOException e) {
-			throw new SensorException("Cannot connect to camera PTZ service", e);
+	protected void createVideoInterface() throws SensorHubException {
+		if (videoDataInterface != null) {
+			videoDataInterface.stop();
+			videoDataInterface = null;
 		}
+
+		if (config.ffmpegConnection.connectionString == null || config.ffmpegConnection.connectionString.isBlank()) {
+			try {
+				config.ffmpegConnection.connectionString = device.getMediaUrl(); // TODO Not sure if this URL is correct
+			} catch (Exception e) {
+				throw new SensorException("Could not find A/V media URL.", e);
+			}
+		}
+
+		try {
+			this.videoDataInterface = new AnpvizVideoOutput(config.ffmpegConnection);
+			this.videoDataInterface.init();
+			addOutput(this.videoDataInterface.getVideoDataInterface(), false);
+		} catch (Exception e) {
+			videoDataInterface = null;
+			logger.warn("Could not connect to A/V stream.", e);
+		}
+	}
+
+	protected void createPtzInterface() throws SensorException, IOException {
 
 		// add PTZ controller
 		this.ptzControlInterface = new AnpvizPtzControl(this);

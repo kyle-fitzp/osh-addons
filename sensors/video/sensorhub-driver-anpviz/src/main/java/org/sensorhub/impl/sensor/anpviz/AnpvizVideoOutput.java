@@ -19,7 +19,13 @@ import java.nio.ByteBuffer;
 import java.util.Timer;
 import java.util.TimerTask;
 
+import net.opengis.sensorml.v20.DataInterface;
+import org.sensorhub.api.common.SensorHubException;
+import org.sensorhub.api.data.IStreamingDataInterface;
 import org.sensorhub.api.sensor.SensorException;
+import org.sensorhub.impl.sensor.ffmpeg.FFMPEGSensor;
+import org.sensorhub.impl.sensor.ffmpeg.config.Connection;
+import org.sensorhub.impl.sensor.ffmpeg.config.FFMPEGConfig;
 import org.sensorhub.impl.sensor.rtpcam.RTPVideoOutput;
 import org.sensorhub.impl.sensor.videocam.VideoResolution;
 
@@ -33,72 +39,21 @@ import org.sensorhub.impl.sensor.videocam.VideoResolution;
  * @author Mike Botts
  * @since March 2017
  */
-public class AnpvizVideoOutput extends RTPVideoOutput<AnpvizDriver>
+public class AnpvizVideoOutput extends FFMPEGSensor
 {
-    volatile long lastFrameTime;
-    Timer watchdog;
-    
-    
-	protected AnpvizVideoOutput(AnpvizDriver driver)
-	{
-		super(driver);
-	}
-    
 
-    public void init() throws SensorException
-    {
-        /*
-        VideoResolution res = parentSensor.getConfiguration().video.getResolution();
-        super.init(res.getWidth(), res.getHeight());
-        
-         */
-    }
-	
-
-    public void start() throws SensorException
-    {
-        /*
-        AnpvizConfig config = parentSensor.getConfiguration();
-        //super.start(config.video, config.rtsp, config.connection.connectTimeout);
-                
-        // start watchdog thread to detect disconnections
-        final long maxFramePeriod = 10000 / config.video.frameRate;
-        lastFrameTime = Long.MAX_VALUE;
-        TimerTask checkFrameTask = new TimerTask()
-        {
-            @Override
-            public void run()
-            {
-                if (lastFrameTime < System.currentTimeMillis() - maxFramePeriod)
-                {
-                    parentSensor.getLogger().warn("No frame received in more than {}ms. Reconnecting...", maxFramePeriod);
-                    parentSensor.connection.reconnect();
-                    cancel();
-                }
-            }
-        };
-        
-        watchdog = new Timer();
-        watchdog.scheduleAtFixedRate(checkFrameTask, 0L, 10000L);
-
-         */
+    public AnpvizVideoOutput(Connection config) {
+        super();
+        this.config = new FFMPEGConfig();
+        this.config.connection = config;
     }
 
-
-    @Override
-    public void onFrame(long timeStamp, int seqNum, ByteBuffer frameBuf, boolean packetLost)
-    {
-        super.onFrame(timeStamp, seqNum, frameBuf, packetLost);
-        lastFrameTime = System.currentTimeMillis();
+    public IStreamingDataInterface getVideoDataInterface() {
+        return this.videoOutput;
     }
 
-
-    @Override
-    public void stop()
-    {
-        super.stop();
-        if(watchdog != null) {
-        	watchdog.cancel();
-        }
+    public IStreamingDataInterface getAudioDataInterface() {
+        return this.audioOutput;
     }
+
 }

@@ -15,12 +15,6 @@ Developer are Copyright (C) 2014 the Initial Developer. All Rights Reserved.
 
 package org.sensorhub.impl.sensor.anpviz;
 
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.net.URL;
-
 import org.sensorhub.api.config.DisplayInfo;
 import org.sensorhub.api.config.DisplayInfo.Required;
 import org.sensorhub.api.sensor.PositionConfig;
@@ -28,13 +22,7 @@ import org.sensorhub.api.sensor.PositionConfig.EulerOrientation;
 import org.sensorhub.api.sensor.PositionConfig.LLALocation;
 import org.sensorhub.api.sensor.SensorConfig;
 import org.sensorhub.impl.comm.HTTPConfig;
-import org.sensorhub.impl.comm.RobustIPConnectionConfig;
-import org.sensorhub.impl.sensor.anpviz.ptz.AnpvizPTZconfig;
-import org.sensorhub.impl.sensor.anpviz.ptz.AnpvizPTZpreset;
-import org.sensorhub.impl.sensor.anpviz.ptz.AnpvizPTZrelMove;
-import org.sensorhub.impl.sensor.rtpcam.RTSPConfig;
-import org.sensorhub.impl.sensor.videocam.BasicVideoConfig;
-import org.sensorhub.impl.sensor.videocam.VideoResolution;
+import org.sensorhub.impl.sensor.ffmpeg.config.Connection;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -56,22 +44,11 @@ public class AnpvizConfig extends SensorConfig {
 	@DisplayInfo(label = "HTTP", desc = "HTTP configuration")
 	public HTTPConfig http = new HTTPConfig();
 
-	@DisplayInfo(label = "RTP/RTSP", desc = "RTP/RTSP configuration (Remote host is obtained from HTTP configuration)")
-	public RTSPConfig rtsp = new RTSPConfig();
-
-	@DisplayInfo(label = "Connection Options")
-	public RobustIPConnectionConfig connection = new RobustIPConnectionConfig();
-
+	@DisplayInfo(label = "FFmpeg Connection", desc = "FFmpeg configuration for audio/visual streaming")
+	public Connection ffmpegConnection = new Connection();
 
 	@DisplayInfo(desc = "Camera geographic position")
 	public PositionConfig position = new PositionConfig();
-
-	@DisplayInfo(label = "PTZ", desc = "Pan-Tilt-Zoom configuration")
-	public AnpvizPTZconfig ptz = new AnpvizPTZconfig();
-
-	public int ptzSpeedVal = 2; // Set PTZ Speed (integer value in range 0-4,
-								// 0=fast, 4=slow)
-
 
 	/********************************************************************/
 
