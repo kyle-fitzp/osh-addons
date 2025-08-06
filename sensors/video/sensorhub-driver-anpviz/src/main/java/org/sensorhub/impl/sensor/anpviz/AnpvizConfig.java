@@ -39,7 +39,7 @@ public class AnpvizConfig extends SensorConfig {
 
 	@Required
 	@DisplayInfo(label = "Camera ID", desc = "Camera ID to be appended to UID prefix")
-	public String cameraID;
+	public String cameraID = "anpvizcam001";
 
 	@DisplayInfo(label = "HTTP", desc = "HTTP configuration")
 	public HTTPConfig http = new HTTPConfig();
