@@ -68,7 +68,7 @@ public class AnpvizDriver extends AbstractSensorModule<AnpvizConfig> {
 			device = new AnpvizDevice(config.http.remoteHost, config.http.remotePort,
 					config.http.user, config.http.password);
 		} catch (Exception e) {
-			throw new SensorHubException("Could not connect to Anpviz camera.", e);
+			reportError("Could not connect to Anpviz camera.", e);
 		}
 
 		try {
@@ -148,7 +148,7 @@ public class AnpvizDriver extends AbstractSensorModule<AnpvizConfig> {
 			try {
 				config.ffmpegConnection.connectionString = device.getMediaUrl(); // TODO Not sure if this URL is correct
 			} catch (Exception e) {
-				throw new SensorException("Could not find A/V media URL.", e);
+				logger.warn("Could not find A/V media URL.", e);
 			}
 		}
 
