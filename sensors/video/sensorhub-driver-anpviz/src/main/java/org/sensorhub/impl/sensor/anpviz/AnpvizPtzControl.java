@@ -142,40 +142,7 @@ public class AnpvizPtzControl extends AbstractSensorControl<AnpvizDriver> {
 						throw new CommandException("Invalid command.");
 				}
 				updatePresetsConstraint();
-				/*
-				AnpvizPTZpreset preset = presetsHandler.getPreset(data.getStringValue());
-				logger.info("Tasking with PTZ preset " + preset.name);
 
-				String presetCmd = new String();
-
-				if (preset.name.equalsIgnoreCase("Reset"))
-					presetCmd = "ptzReset";
-				else
-					presetCmd = "ptzGotoPresetPoint&name=" + preset.name;
-
-				// move to preset
-				URL optionsURL = new URL("http://" + parentSensor.getConfiguration().http.remoteHost + ":"
-						+ Integer.toString(parentSensor.getConfiguration().http.remotePort)
-						+ "/cgi-bin/CGIProxy.fcgi?cmd=" + presetCmd + "&usr="
-						+ parentSensor.getConfiguration().http.user + "&pwd="
-						+ parentSensor.getConfiguration().http.password);
-
-				// add BufferReader and check for error
-				InputStream is = optionsURL.openStream();
-				BufferedReader reader = null;
-				reader = new BufferedReader(new InputStreamReader(is));
-				String line;
-				while ((line = reader.readLine()) != null) {
-					String[] tokens = line.split("<|\\>");
-					if (tokens[1].trim().equals("runResult")) {
-						if (!tokens[2].trim().equalsIgnoreCase("0"))
-							System.err.println("Unrecognized Command");
-						else
-							logger.info("Successful Command");
-					}
-				}
-				is.close();
-				 */
 			}
 
 
@@ -189,7 +156,7 @@ public class AnpvizPtzControl extends AbstractSensorControl<AnpvizDriver> {
 				int tilt = (int)data.getFloatValue(1);
 				int zoom = (int)data.getFloatValue(2);
 
-				AnpvizPtzTuple moveVec = new AnpvizPtzTuple(pan, tilt);
+				AnpvizPtzTuple moveVec = new AnpvizPtzTuple(pan, tilt, zoom);
 				parent.device.ptzMove(moveVec);
 			}
 

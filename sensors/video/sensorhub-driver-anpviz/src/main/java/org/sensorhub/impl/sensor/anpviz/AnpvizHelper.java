@@ -19,6 +19,7 @@ import java.util.Collection;
 
 import net.opengis.swe.v20.*;
 import org.sensorhub.impl.sensor.videocam.VideoCamHelper;
+import org.vast.data.UnitReferenceImpl;
 
 
 /**
@@ -47,11 +48,14 @@ public class AnpvizHelper extends VideoCamHelper
         commandData.setName(name);
 
         // -100 and 100 are arbitrary
-        Quantity pan = getPanComponent(-100, 100);
+        Quantity pan = getPanComponent(-10, 10);
+        pan.setUom(null);
         //commandData.addItem(TASKING_PAN, pan);
-        Quantity tilt = getTiltComponent(-100, 100);
+        Quantity tilt = getTiltComponent(-10, 10);
+        tilt.setUom(null);
         //commandData.addItem(TASKING_TILT, tilt);
-        Quantity zoom = getZoomComponent(-100, 100);
+        Quantity zoom = getZoomComponent(-10, 10);
+        zoom.setUom(null);
         //commandData.addItem(TASKING_ZOOM, zoom);
         
         // PTZ Preset Positions

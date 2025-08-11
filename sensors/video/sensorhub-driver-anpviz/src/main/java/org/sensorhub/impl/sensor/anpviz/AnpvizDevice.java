@@ -153,11 +153,13 @@ public class AnpvizDevice {
         String direction = moveVector.getDirection();
         String zoom = moveVector.getZoom();
         String xmlBody;
+        boolean didStop = false;
 
         // Cancel ptz if either pt or z need to stop
         if (direction.isEmpty() || zoom.isEmpty()) {
             xmlBody = "<xml><cmd>stop</cmd></xml>";
             sendRequest(xmlBody, AnpvizRequest.SET_PTZ_CMD_PATH);
+            didStop = true;
         }
 
         if (!direction.isEmpty()) {
@@ -171,6 +173,13 @@ public class AnpvizDevice {
             sendRequest(xmlBody, AnpvizRequest.SET_PTZ_CMD_PATH);
         }
         if (!zoom.isEmpty()) {
+            // If the stop command was sent, wait a moment so that the zoom command is processed.
+            if (didStop) {
+                try {
+                    Thread.sleep(500);
+                } catch (InterruptedException ignored) {
+                }
+            }
             xmlBody = "<xml><cmd>" + zoom + "</cmd></xml>";
             sendRequest(xmlBody, AnpvizRequest.SET_PTZ_CMD_PATH);
         }

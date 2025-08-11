@@ -53,26 +53,37 @@ public class AnpvizPtzTuple {
     }
 
     public String getDirection() {
-        StringBuilder result = new StringBuilder();
+        String result = "";
+        // Diagonals are inverted for some reason
 
-        if (panSpeed > 0) {
-            result.append("right");
-        } else if (panSpeed < 0) {
-            result.append("left");
+        // Pan right
+        if (panSpeed < 0) {
+            if (tiltSpeed < 0) {
+                result = "left_up"; // Pan right down
+            } else if (tiltSpeed > 0) {
+                result = "left_down"; // Pan right up
+            } else {
+                result = "right";
+            }
+
+        // Pan left
+        } else if (panSpeed > 0) {
+            if (tiltSpeed < 0) {
+                result = "right_up"; // Pan left down
+            } else if (tiltSpeed > 0) {
+                result = "right_down"; // Pan left up
+            } else {
+                result = "left";
+            }
+        } else {
+            if (tiltSpeed < 0) {
+                result = "down";
+            }
+            else if (tiltSpeed > 0) {
+                result = "up";
+            }
         }
 
-        if (tiltSpeed > 0) {
-            if (!result.isEmpty()) {
-                result.append("_");
-            }
-            result.append("up");
-        } else if (tiltSpeed < 0) {
-            if (!result.isEmpty()) {
-                result.append("_");
-            }
-            result.append("down");
-        }
-
-        return result.toString();
+        return result;
     }
 }
