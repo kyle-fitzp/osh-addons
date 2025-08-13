@@ -42,11 +42,8 @@ public class AnpvizHelper extends VideoCamHelper
     public static String TASKING_PTZCONT = "contMove";
 
 
-    public DataChoice getPtzTaskParameters(String name)
+    public DataRecord getPtzTaskParameters(String name)
     {
-        DataChoice commandData = this.newDataChoice();
-        commandData.setName(name);
-
         // -100 and 100 are arbitrary
         Quantity pan = getPanComponent(-10, 10);
         pan.setUom(null);
@@ -58,25 +55,37 @@ public class AnpvizHelper extends VideoCamHelper
         zoom.setUom(null);
         //commandData.addItem(TASKING_ZOOM, zoom);
         
-        // PTZ Preset Positions
-        var presets = newDataChoice();
-        presets.setName(TASKING_PTZPRESET);
-        presets.setDefinition(getPropertyUri("CameraPresetPositionName"));
-        presets.setLabel("Preset Camera Positions");
+        // PTZ Continuous Movements
+        DataRecord contMove = newDataRecord(3);
+        contMove.setName(name);
+        contMove.setDefinition(getPropertyUri("CameraContinuousMovementName"));
+        contMove.setLabel("Camera Continuous Movement");
+        contMove.addComponent("pan", pan.copy());
+        contMove.addComponent("tilt", tilt.copy());
+        contMove.addComponent("zoom", zoom.copy());
+        
+        return contMove;
+    }
+
+    public DataChoice getPresetTaskParameters(String name)
+    {
+        DataChoice commandData = this.newDataChoice();
+        commandData.setName(name);
+        commandData.setLabel("Preset Camera Positions");
 
         var presetGoto = newCategory();
         presetGoto.setName(TASKING_PTZPRESET_GOTO);
         presetGoto.setLabel("Go To Preset");
         var allowedTokens = newAllowedTokens();
         presetGoto.setConstraint(allowedTokens);
-        presets.addItem(TASKING_PTZPRESET_GOTO, presetGoto);
+        commandData.addItem(TASKING_PTZPRESET_GOTO, presetGoto);
 
         var presetRemove = newCategory();
         presetRemove.setName(TASKING_PTZPRESET_REMOVE);
         presetRemove.setLabel("Remove Preset");
         var allowedTokensRemove = newAllowedTokens();
         presetRemove.setConstraint(allowedTokensRemove);
-        presets.addItem(TASKING_PTZPRESET_REMOVE, presetRemove);
+        commandData.addItem(TASKING_PTZPRESET_REMOVE, presetRemove);
 
         var presetAdd = newCount(DataType.INT);
         presetAdd.setName(TASKING_PTZPRESET_ADD);
@@ -84,19 +93,8 @@ public class AnpvizHelper extends VideoCamHelper
         var range = newAllowedValues();
         range.addInterval(new double[] {1, 255});
         presetAdd.setConstraint(range);
-        presets.addItem(TASKING_PTZPRESET_ADD, presetAdd);
+        commandData.addItem(TASKING_PTZPRESET_ADD, presetAdd);
 
-        commandData.addItem(TASKING_PTZPRESET, presets);
-        
-        // PTZ Continuous Movements
-        DataRecord contMove = newDataRecord(3);
-        contMove.setDefinition(getPropertyUri("CameraContinuousMovementName"));
-        contMove.setLabel("Camera Continuous Movement");
-        contMove.addComponent("pan", pan.copy());
-        contMove.addComponent("tilt", tilt.copy());
-        contMove.addComponent("zoom", zoom.copy());
-        commandData.addItem(TASKING_PTZCONT, contMove);
-        
         return commandData;
     }
 }

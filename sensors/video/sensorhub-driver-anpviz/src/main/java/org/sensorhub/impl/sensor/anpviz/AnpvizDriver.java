@@ -42,6 +42,7 @@ public class AnpvizDriver extends AbstractSensorModule<AnpvizConfig> {
 
 	private static final Logger logger = LoggerFactory.getLogger(AnpvizDriver.class);
 	private AnpvizPtzControl ptzControlInterface;
+	private AnpvizPtzPresetControl ptzPresetControl;
 	RobustIPConnection connection;
 	AnpvizVideoOutput videoDataInterface;
 
@@ -62,6 +63,7 @@ public class AnpvizDriver extends AbstractSensorModule<AnpvizConfig> {
 		super.doInit();
 		videoDataInterface = null;
 		ptzControlInterface = null;
+		ptzPresetControl = null;
 		ptzSupported = false;
 
 		try {
@@ -84,6 +86,7 @@ public class AnpvizDriver extends AbstractSensorModule<AnpvizConfig> {
 			logger.error(e.getMessage());
 			ptzSupported = false;
 			ptzControlInterface = null;
+			ptzPresetControl = null;
 		}
 
 		/*
@@ -166,8 +169,11 @@ public class AnpvizDriver extends AbstractSensorModule<AnpvizConfig> {
 
 		// add PTZ controller
 		this.ptzControlInterface = new AnpvizPtzControl(this);
+		this.ptzPresetControl = new AnpvizPtzPresetControl(this);
 		addControlInput(ptzControlInterface);
+		addControlInput(ptzPresetControl);
 		ptzControlInterface.init();
+		ptzPresetControl.init();
 	}
 
 	@Override
