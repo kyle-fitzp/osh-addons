@@ -46,13 +46,13 @@ public class AnpvizHelper extends VideoCamHelper
     {
         // -100 and 100 are arbitrary
         Quantity pan = getPanComponent(-10, 10);
-        pan.setUom(null);
+        pan.setUom(new UnitReferenceImpl());
         //commandData.addItem(TASKING_PAN, pan);
         Quantity tilt = getTiltComponent(-10, 10);
-        tilt.setUom(null);
+        tilt.setUom(new UnitReferenceImpl());
         //commandData.addItem(TASKING_TILT, tilt);
         Quantity zoom = getZoomComponent(-10, 10);
-        zoom.setUom(null);
+        zoom.setUom(new UnitReferenceImpl());
         //commandData.addItem(TASKING_ZOOM, zoom);
         
         // PTZ Continuous Movements

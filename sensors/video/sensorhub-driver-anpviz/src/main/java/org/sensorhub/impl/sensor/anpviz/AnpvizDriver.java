@@ -168,8 +168,9 @@ public class AnpvizDriver extends AbstractSensorModule<AnpvizConfig> {
 	protected void createPtzInterface() throws SensorException, IOException {
 
 		// add PTZ controller
-		this.ptzControlInterface = new AnpvizPtzControl(this);
 		this.ptzPresetControl = new AnpvizPtzPresetControl(this);
+		this.ptzControlInterface = new AnpvizPtzControl(this);
+
 		addControlInput(ptzControlInterface);
 		addControlInput(ptzPresetControl);
 		ptzControlInterface.init();

@@ -77,10 +77,9 @@ public class AnpvizDevice {
 
     public void updatePresetList() throws SensorException, IOException {
         String response = sendRequest("", AnpvizRequest.GET_PRESET_LIST_PATH);
-        response = response.substring(response.indexOf("<PresetList>") + "<PresetList>".length(),
-                response.indexOf("</PresetList>"));
-
         try {
+            response = response.substring(response.indexOf("<PresetList>") + "<PresetList>".length(),
+                    response.indexOf("</PresetList>"));
             this.presets = Arrays.stream(response.replaceAll("</?p>", " ").trim().split("\\s+"))
                     .mapToInt(Integer::parseInt)
                     .toArray();

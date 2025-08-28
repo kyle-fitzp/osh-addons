@@ -72,17 +72,7 @@ public class AnpvizPtzControl extends AbstractSensorControl<AnpvizDriver> {
 
 	protected void start() throws SensorException {
 		// reset to Pan=0, Tilt=0, Zoom=0
-		DataBlock initCmd;
-		initCmd = commandData.createDataBlock();
 
-		try
-        {
-            execCommand(initCmd);
-        }
-        catch (CommandException e)
-        {
-            throw new SensorException("Init command failed", e);
-        }
 	}
 
 	protected void stop() {
@@ -108,7 +98,6 @@ public class AnpvizPtzControl extends AbstractSensorControl<AnpvizDriver> {
 
 			AnpvizPtzTuple moveVec = new AnpvizPtzTuple(pan, tilt, zoom);
 			parent.device.ptzMove(moveVec);
-
 		} catch (Exception e) {
 			throw new CommandException("Error connecting to Anpviz PTZ control", e);
 		}

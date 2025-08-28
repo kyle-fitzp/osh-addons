@@ -44,7 +44,7 @@ public class AnpvizPtzPresetControl extends AbstractSensorControl<AnpvizDriver> 
 	SWEHelper helper = new SWEHelper();
 
 	protected AnpvizPtzPresetControl(AnpvizDriver driver) {
-		super("ptzControl", driver);
+		super("presetControl", driver);
 	}
 
 	protected void init() throws SensorException {
