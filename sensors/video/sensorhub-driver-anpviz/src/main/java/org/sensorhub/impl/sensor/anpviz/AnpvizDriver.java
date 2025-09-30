@@ -61,6 +61,8 @@ public class AnpvizDriver extends AbstractSensorModule<AnpvizConfig> {
     protected void doInit() throws SensorHubException {
 		// reset internal state in case init() was already called
 		super.doInit();
+		generateUniqueID("urn:osh:sensor:anpviz:", config.cameraID);
+		generateXmlID("ANPVIZ_", config.cameraID);
 		videoDataInterface = null;
 		ptzControlInterface = null;
 		ptzPresetControl = null;
