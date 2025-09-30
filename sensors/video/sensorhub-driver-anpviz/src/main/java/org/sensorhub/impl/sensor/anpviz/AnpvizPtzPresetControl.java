@@ -89,7 +89,7 @@ public class AnpvizPtzPresetControl extends AbstractSensorControl<AnpvizDriver> 
 
 	protected void updatePresetsConstraint() {
 		int[] presets = parent.device.getPresets();
-		var presetsData = ((DataChoice)commandData.getItem(AnpvizHelper.TASKING_PTZPRESET));
+		var presetsData = commandData;
 		AllowedTokens tokens = helper.newAllowedTokens();
 		for (int preset : presets) {
 			tokens.addValue(Integer.toString(preset));
